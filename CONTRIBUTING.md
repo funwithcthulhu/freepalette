@@ -1,18 +1,18 @@
 # Contributing
 
-freepalette is maintainer-led and intentionally narrow. Contributions are
-welcome when they preserve the local-first, no-telemetry direction of the
-project.
+freepalette is maintainer-led and early. Small, focused pull requests are easier
+to review than broad rewrites.
 
-## Expected Workflow
+## Before You Start
 
-1. Open an issue for bugs or small feature requests.
-2. Open an RFC-style issue before large design changes.
-3. Keep pull requests focused.
-4. Update docs when behavior, configuration, architecture, or security posture
-   changes.
+- Open an issue for bugs and small feature requests.
+- Open a design issue before changing provider APIs, execution behavior,
+  plugin direction, app indexing, or security-sensitive code.
+- Check [NON_GOALS.md](docs/NON_GOALS.md) before proposing larger features.
 
-## Build
+## Local Checks
+
+Run these before opening a pull request:
 
 ```powershell
 cargo fmt --all -- --check
@@ -20,52 +20,56 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 ```
 
-Useful local commands:
+Useful commands while working:
 
 ```powershell
 cargo run -p freepalette-cli -- providers
 cargo run -p freepalette-cli -- search "calc 2+2"
 cargo run -p freepalette-cli -- search "> echo hello"
-cargo run -p freepalette-cli -- search "notepad"
+cargo run -p freepalette-cli -- apps list
 ```
 
-## Filing Issues
+## Pull Requests
 
-Bug reports should include the OS, freepalette version or commit, expected
-behavior, actual behavior, reproduction steps, and logs or command output.
+Good pull requests usually include:
 
-Feature requests should explain the problem, a proposed solution, alternatives,
-why the request fits project scope, and privacy or security implications.
+- a short explanation of the behavior change;
+- tests for the changed behavior;
+- docs updates when user-visible behavior changes;
+- notes about shell, clipboard, app launch, or plugin security impact.
 
-## Coding Style
+Avoid mixing refactors with feature work unless the refactor is needed for the
+feature and stays small.
 
-- Prefer small modules and explicit data flow.
-- Use `thiserror` for library errors and `anyhow` at CLI or application
-  boundaries.
-- Avoid `unwrap` and `expect` outside tests or clearly justified startup code.
-- Keep provider behavior testable without a GUI.
-- Use `tracing` for structured logging.
-- Do not add telemetry.
+## Provider Changes
 
-## Adding Providers
+Provider work belongs in `freepalette-core` unless it is only CLI or UI output.
+A provider should make these things clear:
 
-Providers should implement the `Provider` trait from `freepalette-plugin-api`.
-New providers should include:
+- which queries it recognizes;
+- which `SearchResult` values it returns;
+- which `Action` values it can execute;
+- what happens on unsupported platforms;
+- what is stubbed or intentionally missing.
 
-- clear query detection rules
-- meaningful result titles and actions
-- tests for matching behavior
-- documentation for platform limitations
-- no background network dependency for MVP behavior
+Do not add network calls, telemetry, accounts, or background cloud dependencies
+to MVP providers.
 
-## Keeping Scope Narrow
+## Security-Sensitive Code
 
-Do not add cloud sync, accounts, AI assistant behavior, plugin marketplace
-features, or automatic shell command execution. If a feature changes the
-security model, start with a design issue before code.
+Treat these areas as security-sensitive:
+
+- shell command execution;
+- app launching;
+- clipboard reads and writes;
+- config loading and future config watching;
+- future plugin execution.
+
+Shell actions must require explicit execution and the `--allow-shell` CLI guard.
+Search must not run shell commands.
 
 ## Licensing
 
 New code is contributed under `MIT OR Apache-2.0`, matching the workspace Cargo
-metadata. Keep license references in README and release docs up to date when
-repository metadata changes.
+metadata. Keep `LICENSE-MIT`, `LICENSE-APACHE`, README, and release docs in
+sync if licensing metadata changes.

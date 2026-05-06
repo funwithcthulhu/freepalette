@@ -5,6 +5,8 @@ use freepalette_plugin_api::{
     SearchResult,
 };
 
+const SHELL_SCORE_HINT: i64 = 900;
+
 pub struct ShellCommandProvider;
 
 impl Provider for ShellCommandProvider {
@@ -32,7 +34,7 @@ impl Provider for ShellCommandProvider {
             "shell".to_string(),
             "command".to_string(),
         ])
-        .with_score_hint(900)])
+        .with_score_hint(SHELL_SCORE_HINT)])
     }
 
     fn execute(&self, action: &Action) -> Result<ActionOutcome, PluginError> {
@@ -55,7 +57,7 @@ fn run_shell_command(command: &str) -> Result<ActionOutcome, PluginError> {
     let output = shell_program()
         .args(shell_args(command))
         .output()
-        .map_err(|source| PluginError::Action(source.to_string()))?;
+        .map_err(|source| PluginError::Action(format!("failed to start shell: {source}")))?;
 
     let status = output.status.code().map_or_else(
         || "terminated by signal".to_string(),
@@ -106,6 +108,8 @@ mod tests {
     fn parses_shell_prefix() {
         assert_eq!(shell_command_from_query("> echo hello"), Some("echo hello"));
         assert_eq!(shell_command_from_query("   > pwd"), Some("pwd"));
+        assert_eq!(shell_command_from_query(">"), None);
+        assert_eq!(shell_command_from_query(">   "), None);
         assert_eq!(shell_command_from_query("echo hello"), None);
     }
 

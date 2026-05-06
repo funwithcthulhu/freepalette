@@ -36,9 +36,9 @@ impl std::fmt::Display for ProviderId {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Query(String);
+pub struct SearchQuery(String);
 
-impl Query {
+impl SearchQuery {
     pub fn new(raw: impl Into<String>) -> Self {
         Self(raw.into())
     }
@@ -56,13 +56,13 @@ impl Query {
     }
 }
 
-impl From<&str> for Query {
+impl From<&str> for SearchQuery {
     fn from(value: &str) -> Self {
         Self::new(value)
     }
 }
 
-impl std::fmt::Display for Query {
+impl std::fmt::Display for SearchQuery {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(formatter)
     }
@@ -70,14 +70,14 @@ impl std::fmt::Display for Query {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchContext {
-    pub query: Query,
+    pub query: SearchQuery,
     pub limit: usize,
 }
 
 impl SearchContext {
     pub fn new(query: impl Into<String>, limit: usize) -> Self {
         Self {
-            query: Query::new(query),
+            query: SearchQuery::new(query),
             limit,
         }
     }

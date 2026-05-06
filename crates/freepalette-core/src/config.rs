@@ -133,6 +133,18 @@ mod tests {
     }
 
     #[test]
+    fn missing_sections_use_defaults() {
+        let config: Config = toml::from_str("").expect("empty config should use defaults");
+
+        assert_eq!(config.general.max_results, 10);
+        assert!(config.providers.apps);
+        assert!(config.providers.calculator);
+        assert!(config.providers.shell);
+        assert!(config.providers.clipboard);
+        assert!(config.apps.is_empty());
+    }
+
+    #[test]
     fn loads_config_from_path() {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
