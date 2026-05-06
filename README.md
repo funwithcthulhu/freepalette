@@ -41,7 +41,7 @@ Implemented now:
 - CLI search over built-in providers.
 - Calculator queries prefixed with `calc`, such as `calc 2+2`.
 - Shell command queries prefixed with `>`, displayed as actions by default.
-- Stub app launcher provider with sample entries.
+- Windows app launcher provider that indexes Start Menu entries.
 - Stub clipboard provider.
 - TOML config loading from a path.
 - Fuzzy search and simple documented ranking.
@@ -49,11 +49,18 @@ Implemented now:
 
 Intentionally not implemented yet:
 
-- real platform app indexing
+- macOS and Linux app indexing
 - clipboard capture or persistence
 - global hotkey daemon behavior
 - GUI beyond a placeholder crate
 - external plugin execution
+
+Windows app indexing currently scans user and system Start Menu `Programs`
+directories for `.lnk`, `.exe`, and `.appref-ms` entries, and seeds a small
+Windows built-in Notepad entry so the basic launcher demo works even when
+Notepad has no Start Menu shortcut. If indexing is unavailable or finds no apps,
+the provider falls back to a clearly labeled sample Notepad entry unless
+configured apps already exist.
 
 ## Build
 
@@ -92,7 +99,7 @@ cargo run -p freepalette-cli -- config-path
 ## Architecture Overview
 
 - `freepalette-core`: config loading, provider registry, fuzzy search, ranking,
-  and built-in providers.
+  Windows Start Menu app indexing, and built-in providers.
 - `freepalette-cli`: developer and user CLI for testing search and providers.
 - `freepalette-daemon`: placeholder for future hotkeys, indexing, clipboard
   state, config reload, and provider refresh.

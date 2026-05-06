@@ -36,7 +36,7 @@ Owns UI-independent behavior:
 
 Built-in providers currently include:
 
-- app launcher stub with sample entries
+- app launcher provider with Windows Start Menu indexing and sample fallback
 - calculator provider for `calc` arithmetic
 - shell provider for `>` commands
 - clipboard history stub
@@ -99,10 +99,32 @@ but core data types should stay portable.
 
 Current limitations:
 
-- real platform app indexing is not implemented
+- app indexing is Windows-first and currently based on Start Menu entries
+- macOS and Linux app indexing are not implemented
 - clipboard capture is not implemented
 - global hotkeys are not implemented
 - config watching is not implemented
+
+## Windows App Indexing
+
+The app provider currently indexes these Windows Start Menu roots when they are
+available:
+
+- `%APPDATA%\Microsoft\Windows\Start Menu\Programs`
+- `%ProgramData%\Microsoft\Windows\Start Menu\Programs`
+
+It scans recursively for `.lnk`, `.exe`, and `.appref-ms` files. Configured app
+entries are loaded first and win over discovered entries with the same display
+name. Shortcuts and ClickOnce references launch through `explorer.exe`; direct
+executables launch by path.
+
+The provider also seeds a small Windows built-in Notepad entry. This keeps the
+basic `freepalette search "notepad"` demo dependable on Windows machines where
+Notepad is available as `notepad.exe` but not present as a Start Menu shortcut.
+
+If indexing is unavailable or finds no entries, the provider records that state
+and uses a clearly labeled sample Notepad fallback only when there are no
+configured apps.
 
 ## Licensing Metadata
 
