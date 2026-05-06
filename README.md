@@ -141,13 +141,9 @@ to review. Read `CONTRIBUTING.md`, `docs/NON_GOALS.md`, and
 
 ## License
 
-freepalette uses the standard Rust ecosystem dual license:
+Licensed under either of:
 
-- MIT license, see `LICENSE-MIT`
 - Apache License, Version 2.0, see `LICENSE-APACHE`
+- MIT license, see `LICENSE-MIT`
 
 Cargo package metadata is set to `MIT OR Apache-2.0`.
-
-The root `LICENSE` file contains the MIT license text so GitHub can display a
-known license in the repository sidebar. The full project licensing choice
-remains `MIT OR Apache-2.0`.

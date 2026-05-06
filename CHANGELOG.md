@@ -8,6 +8,9 @@ the core model settles.
 
 ## Unreleased
 
+- Removed the duplicate root `LICENSE` file and restored the standard
+  dual-license layout with `LICENSE-APACHE` and `LICENSE-MIT`.
+
 ## 0.2.0 - 2026-05-06
 
 - Bumped workspace crate versions to `0.2.0`.
@@ -30,5 +33,3 @@ the core model settles.
 - Added CLI search and provider listing commands.
 - Added daemon and UI placeholder crates.
 - Added documentation, CI, and GitHub community files.
-- Added root `LICENSE` for GitHub license detection while keeping the dual
-  `MIT OR Apache-2.0` project license.

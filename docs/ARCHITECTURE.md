@@ -142,5 +142,4 @@ configured apps.
 ## Licensing Metadata
 
 All Cargo packages use `license = "MIT OR Apache-2.0"`. The repository includes
-`LICENSE-MIT` and `LICENSE-APACHE` for the dual license. A root `LICENSE` file
-contains the MIT text so GitHub can show a known license in repository metadata.
+`LICENSE-MIT` and `LICENSE-APACHE` for the dual license.
