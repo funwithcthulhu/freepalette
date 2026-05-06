@@ -15,6 +15,7 @@ path = "src/main.rs"
 anyhow.workspace = true
 clap.workspace = true
 freepalette-core = { path = "../freepalette-core" }
+freepalette-daemon = { path = "../freepalette-daemon" }
 serde_json.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

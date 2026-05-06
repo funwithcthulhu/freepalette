@@ -8,6 +8,11 @@ the core model settles.
 
 ## Unreleased
 
+- Added a local daemon/service state layer for shared config loading, provider
+  registry setup, app index refresh, search, and action execution policy.
+- Routed the CLI and minimal UI through the shared daemon state instead of
+  constructing provider registries separately.
+
 ## 0.3.0 - 2026-05-06
 
 - Bumped workspace crate versions to `0.3.0`.

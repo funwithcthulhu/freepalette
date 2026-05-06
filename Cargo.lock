@@ -826,6 +826,7 @@ dependencies = [
  "anyhow",
  "clap",
  "freepalette-core",
+ "freepalette-daemon",
  "serde_json",
  "tracing",
  "tracing-subscriber",
@@ -850,6 +851,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "freepalette-core",
+ "thiserror 2.0.18",
  "tracing",
  "tracing-subscriber",
 ]
@@ -869,6 +871,7 @@ dependencies = [
  "anyhow",
  "eframe",
  "freepalette-core",
+ "freepalette-daemon",
  "thiserror 2.0.18",
  "tracing",
  "tracing-subscriber",

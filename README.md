@@ -45,6 +45,8 @@ Implemented now:
 - App index inspection through `apps list` and `debug apps`.
 - Explicit top-result execution through `run`.
 - Minimal desktop UI through `freepalette-ui`.
+- Local daemon/service state for shared config loading, provider setup, search,
+  app index refresh, and action execution policy.
 - Stub clipboard provider.
 - TOML config loading from a path.
 - Fuzzy search and simple documented ranking.
@@ -54,7 +56,7 @@ Intentionally not implemented yet:
 
 - macOS and Linux app indexing
 - clipboard capture or persistence
-- global hotkey daemon behavior
+- long-running global hotkey daemon behavior
 - external plugin execution
 
 Windows app indexing currently scans user and system Start Menu `Programs`
@@ -116,12 +118,13 @@ cargo run -p freepalette-cli -- config-path
   Windows Start Menu app indexing, and built-in providers.
 - `freepalette-cli`: developer and user CLI for testing search, app indexing,
   provider state, and explicit result execution.
-- `freepalette-daemon`: placeholder for future hotkeys, indexing, clipboard
-  state, config reload, and provider refresh.
+- `freepalette-daemon`: local service state for shared config loading, provider
+  setup, search, app index refresh, and action execution policy. It is not an
+  IPC service yet.
 - `freepalette-plugin-api`: public provider and action API types.
 - `freepalette-ui`: minimal desktop palette built with `eframe`/`egui` over the
-  Rust core. A future Tauri frontend remains possible if it becomes the simpler
-  long-term path.
+  daemon service state. A future Tauri frontend remains possible if it becomes
+  the simpler long-term path.
 
 See `docs/ARCHITECTURE.md` for details.
 

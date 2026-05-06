@@ -1,12 +1,9 @@
-use anyhow::Context;
-use freepalette_core::Config;
 use freepalette_daemon::DaemonState;
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt().with_target(false).init();
 
-    let config = Config::load_default_or_default().context("failed to load default config")?;
-    let daemon = DaemonState::new(config).context("failed to initialize daemon state")?;
+    let daemon = DaemonState::from_default_config()?;
 
     tracing::info!(
         providers = ?daemon.provider_ids(),
@@ -14,7 +11,7 @@ fn main() -> anyhow::Result<()> {
         "daemon initialized"
     );
     println!("freepalette-daemon initialized");
-    println!("global hotkey, app indexing, and clipboard capture are intentionally stubbed");
+    println!("global hotkey, IPC, and clipboard capture are intentionally not implemented yet");
 
     Ok(())
 }
