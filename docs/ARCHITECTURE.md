@@ -1,166 +1,137 @@
 # Architecture
 
-freepalette is a Rust workspace with a small core and thin outer crates.
-
-The current architecture is Rust-core-first. The GUI and CLI are intentionally
-thin and use the same local daemon/service state for config loading, provider
-setup, search, ranking, app index refresh, and action execution policy.
+freepalette is a Rust workspace with a small core and thin outer crates. The
+current code is still early. This document describes what exists, not what the
+project might become later.
 
 ## Crates
 
+### freepalette-core
+
+Owns the launcher domain code:
+
+- TOML config loading;
+- provider registration;
+- built-in providers;
+- fuzzy matching;
+- ranking;
+- Windows Start Menu app indexing;
+- action dispatch through providers.
+
+Built-in providers currently cover apps, calculator queries, shell command
+actions, and a clipboard stub.
+
+### freepalette-cli
+
+Owns command parsing and terminal output. It can:
+
+- search providers;
+- print provider IDs;
+- inspect app indexing state;
+- print the default config path;
+- run the top result after explicit user request.
+
+Shell actions are blocked unless the user passes `--allow-shell`.
+
+### freepalette-daemon
+
+Despite the crate name, this is not a long-running daemon yet. It currently
+holds shared local state used by the CLI and UI:
+
+- loaded config source;
+- provider registry;
+- app index report;
+- search;
+- app index refresh;
+- action execution policy;
+- clipboard-history placeholder state.
+
+The binary initializes this state and exits. It does not register hotkeys, watch
+config files, expose IPC, or capture clipboard changes.
+
+### freepalette-ui
+
+The UI crate contains a minimal egui palette. It can search, move selection, and
+execute selected non-shell actions through `freepalette-daemon`. Shell actions
+are shown but blocked because there is no confirmation UI yet.
+
+There is no global hotkey, tray integration, IPC daemon connection, or polished
+desktop shell.
+
 ### freepalette-plugin-api
 
-Defines stable public API types for providers and future plugin protocols:
+Defines data types shared by built-in providers and future plugin protocol
+work:
 
-- `Query`
+- `SearchQuery`
 - `SearchContext`
 - `SearchResult`
 - `Action`
 - `ActionOutcome`
 - `Provider`
 
-The Rust trait is for built-in providers and internal extension points. External
-plugins should use a serialized protocol instead of relying on Rust trait-object
-ABI stability.
+The Rust trait is for in-repo providers. External plugin execution is not
+implemented.
 
-### freepalette-core
+## Provider Flow
 
-Owns UI-independent behavior:
+1. Load `Config`.
+2. Build `DaemonState`, which registers enabled providers.
+3. Pass a query string into `ProviderRegistry::search`.
+4. Each provider returns zero or more `SearchResult` values.
+5. Core ranking filters and sorts the results.
+6. CLI or UI displays the ranked results.
+7. Execution happens only after explicit user action.
+8. The selected provider receives the selected action.
 
-- TOML config loading
-- provider registration
-- built-in providers
-- fuzzy matching
-- result ranking
-- action dispatch
+Search and execution are separate on purpose. Shell commands, app launches,
+clipboard writes, and future plugin actions must not run because a query merely
+matched.
 
-Built-in providers currently include:
+## Config Flow
 
-- app launcher provider with Windows Start Menu indexing and sample fallback
-- calculator provider for `calc` arithmetic
-- shell provider for `>` commands
-- clipboard history stub
+`Config` lives in `freepalette-core`. It can load from an explicit TOML path or
+from the platform default path if a file exists there. Missing default config is
+not an error; freepalette uses `Config::default()`.
 
-### freepalette-cli
+The daemon state owns the loaded config and rebuilds provider state from it.
+Tests use explicit temporary config files so they do not depend on a developer's
+local machine.
 
-Provides commands for testing providers, search behavior, indexed apps, and
-explicit action execution without a GUI.
+## Ranking
 
-### freepalette-daemon
+Ranking is simple:
 
-Owns local application state that should be shared by the CLI, UI, and future
-long-running daemon process:
+- fuzzy score over title, subtitle, and keywords;
+- provider score hints for command-style results such as calculator and shell;
+- exact-title and prefix-title bonuses;
+- small result-kind bias for current MVP ergonomics;
+- title and ID ordering as the final tie-breakers.
 
-- config source and reload behavior
-- provider registry creation
-- app index report and refresh
-- search over the configured providers
-- action execution policy, including shell-command gating
-- clipboard history stub state
-
-This crate is not an IPC service yet. The current binary only initializes the
-state and reports that long-running hotkey, IPC, and clipboard capture behavior
-are not implemented.
-
-### freepalette-ui
-
-Minimal desktop palette built with `eframe`/`egui`. It owns only UI state:
-search text, ranked results, selected row, and status messages. Search and
-execution go through `freepalette-daemon`, which owns provider setup and action
-policy.
-
-The first GUI pass uses `eframe` because the standard library has no desktop
-windowing or widget layer, and a Rust-native dependency keeps the build smaller
-than introducing a web frontend and Node toolchain at this stage. A future
-Tauri frontend remains possible if it becomes the simpler long-term path.
-
-## Search Flow
-
-1. Load `Config` through `DaemonState`.
-2. Register enabled providers in `ProviderRegistry` through the daemon state.
-3. Wrap raw input in `Query` and `SearchContext`.
-4. Ask each provider for candidate `SearchResult` values.
-5. Rank candidates with fuzzy score, score hints, exact/prefix bonuses, and a
-   small result-kind bias.
-6. Display results in the CLI, daemon client, or UI.
-7. Execute an `Action` only after explicit user selection.
-
-The CLI exposes app-index inspection through `freepalette apps list` and
-`freepalette debug apps`. Both commands use the daemon state's app index report
-and refresh path rather than duplicating platform indexing logic in the CLI.
-
-The UI follows the same search and execution path through the daemon state. It
-does not talk to a separate long-running daemon process yet.
-
-## Ranking Model
-
-The ranking model is intentionally small:
-
-- fuzzy match over title, subtitle, and keywords
-- provider score hint for dynamic results such as calculator and shell commands
-- exact title bonus
-- prefix title bonus
-- small result-kind bias for MVP usability
-
-There is no personalization, usage tracking, telemetry, account state, or cloud
-ranking.
-
-## Execution Model
-
-Search and execution are separate. Providers return `SearchResult` values with
-an `Action`, but the core should only execute an action after explicit user
-selection. This is especially important for shell commands, clipboard writes,
-app launching, and future plugins.
-
-The CLI's `run` command executes the top ranked result for a query. Shell
-actions are additionally gated behind `--allow-shell`, including when using the
-developer-oriented `search --run` path.
-
-The UI also uses the daemon state's shell-command gate. Shell results can be
-found, but executing one from the minimal UI is blocked until a deliberate UI
-confirmation flow exists.
-
-## Platform Boundaries
-
-Platform-specific implementation should sit behind providers, daemon services,
-or UI integration layers. Windows-first implementation is acceptable initially,
-but core data types should stay portable.
-
-Current limitations:
-
-- app indexing is Windows-first and currently based on Start Menu entries
-- macOS and Linux app indexing are not implemented
-- clipboard capture is not implemented
-- global hotkeys are not implemented
-- config watching is not implemented
-- the GUI has no tray behavior, IPC daemon integration, or global hotkey yet
+The constants are approximate. There is no personalization, telemetry, usage
+history, account state, or cloud ranking.
 
 ## Windows App Indexing
 
-The app provider currently indexes these Windows Start Menu roots when they are
-available:
+The app provider scans these Start Menu roots on Windows:
 
 - `%APPDATA%\Microsoft\Windows\Start Menu\Programs`
 - `%ProgramData%\Microsoft\Windows\Start Menu\Programs`
 
-It scans recursively for `.lnk`, `.exe`, and `.appref-ms` files. Configured app
-entries are loaded first and win over discovered entries with the same display
-name. Shortcuts and ClickOnce references launch through `explorer.exe`; direct
-executables launch by path.
+It recursively indexes `.lnk`, `.exe`, and `.appref-ms` files. Configured apps
+are loaded first and win over discovered apps with the same display name. User
+Start Menu entries are checked before system entries.
 
-When the same app name is discovered from multiple Start Menu roots, the earlier
-root wins. This lets user-level Start Menu entries take precedence over
-system-level entries before the final display list is sorted by app name.
+Shortcuts and ClickOnce entries are launched through `explorer.exe`. Direct
+`.exe` entries are launched by path. If indexing is unsupported, unavailable, or
+empty, the provider records that state and uses a labeled Notepad fallback only
+when there are no configured apps.
 
-The provider also seeds a small Windows built-in Notepad entry. This keeps the
-basic `freepalette search "notepad"` demo dependable on Windows machines where
-Notepad is available as `notepad.exe` but not present as a Start Menu shortcut.
+## Current Limits
 
-If indexing is unavailable or finds no entries, the provider records that state
-and uses a clearly labeled sample Notepad fallback only when there are no
-configured apps.
-
-## Licensing Metadata
-
-All Cargo packages use `license = "MIT OR Apache-2.0"`. The repository includes
-`LICENSE-MIT` and `LICENSE-APACHE` for the dual license.
+- App indexing is Windows-first.
+- Clipboard history is a stub.
+- The daemon crate is not an IPC process.
+- Global hotkeys are not implemented.
+- External plugin execution is not implemented.
+- The UI is usable for smoke testing but is not a finished launcher.

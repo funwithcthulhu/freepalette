@@ -13,10 +13,26 @@ fn temp_config_path(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("freepalette-cli-{name}-{unique}.toml"))
 }
 
-fn write_config(name: &str, contents: &str) -> PathBuf {
+struct TempConfig {
+    path: PathBuf,
+}
+
+impl TempConfig {
+    fn path_arg(&self) -> String {
+        self.path.display().to_string()
+    }
+}
+
+impl Drop for TempConfig {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
+fn write_config(name: &str, contents: &str) -> TempConfig {
     let path = temp_config_path(name);
     fs::write(&path, contents).expect("test config should be writable");
-    path
+    TempConfig { path }
 }
 
 fn run_freepalette(args: &[&str]) -> Output {
@@ -42,10 +58,9 @@ fn search_calculator_query_prints_result() {
             clipboard = false
         "#,
     );
-    let config_arg = config.display().to_string();
+    let config_arg = config.path_arg();
 
     let output = run_freepalette(&["--config", &config_arg, "search", "calc 2+2"]);
-    fs::remove_file(config).expect("test config should be removable");
 
     assert!(output.status.success());
     assert!(output_text(&output.stdout).contains("2+2 = 4"));
@@ -63,10 +78,9 @@ fn search_shell_query_prints_action_without_running() {
             clipboard = false
         "#,
     );
-    let config_arg = config.display().to_string();
+    let config_arg = config.path_arg();
 
     let output = run_freepalette(&["--config", &config_arg, "search", "> echo hello"]);
-    fs::remove_file(config).expect("test config should be removable");
 
     assert!(output.status.success());
     let stdout = output_text(&output.stdout);
@@ -86,10 +100,9 @@ fn run_shell_query_requires_allow_shell() {
             clipboard = false
         "#,
     );
-    let config_arg = config.display().to_string();
+    let config_arg = config.path_arg();
 
     let output = run_freepalette(&["--config", &config_arg, "run", "> echo hello"]);
-    fs::remove_file(config).expect("test config should be removable");
 
     assert!(!output.status.success());
     assert!(!output_text(&output.stdout).contains("Running:"));
@@ -108,10 +121,9 @@ fn apps_list_reports_disabled_app_provider() {
             clipboard = false
         "#,
     );
-    let config_arg = config.display().to_string();
+    let config_arg = config.path_arg();
 
     let output = run_freepalette(&["--config", &config_arg, "apps", "list"]);
-    fs::remove_file(config).expect("test config should be removable");
 
     assert!(output.status.success());
     assert!(output_text(&output.stdout).contains("app provider is disabled"));

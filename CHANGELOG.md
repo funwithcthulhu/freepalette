@@ -17,6 +17,13 @@ the core model settles.
 - Improved the CLI shell-blocked error to point users at `--allow-shell`.
 - Added development documentation and tightened security/plugin/non-goal docs
   around the daemon boundary.
+- Named ranking and provider score constants, and added tests for ranking
+  tie-breaking, config defaults, and empty calculator/shell query parsing.
+- Replaced internal stringly app-index errors with explicit unsupported-platform
+  and missing-Windows-environment states.
+- Renamed the plugin API query wrapper from `Query` to `SearchQuery`.
+- Rewrote README, architecture, roadmap, contributing, and development docs to
+  describe current behavior and limitations more directly.
 
 ## 0.3.0 - 2026-05-06
 
