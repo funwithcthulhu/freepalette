@@ -8,6 +8,9 @@ the core model settles.
 
 ## Unreleased
 
+## 0.3.0 - 2026-05-06
+
+- Bumped workspace crate versions to `0.3.0`.
 - Removed the duplicate root `LICENSE` file and restored the standard
   dual-license layout with `LICENSE-APACHE` and `LICENSE-MIT`.
 - Added the first minimal desktop UI in `freepalette-ui` using `eframe`/`egui`,
