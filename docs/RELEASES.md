@@ -12,8 +12,7 @@ changes should still be documented.
 ## Licensing
 
 Crates should keep `license = "MIT OR Apache-2.0"`. The repository keeps
-`LICENSE-MIT`, `LICENSE-APACHE`, and a root `LICENSE` file for GitHub license
-detection.
+`LICENSE-MIT` and `LICENSE-APACHE`.
 
 ## Release Checklist
 
