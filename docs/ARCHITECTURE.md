@@ -122,10 +122,10 @@ It recursively indexes `.lnk`, `.exe`, and `.appref-ms` files. Configured apps
 are loaded first and win over discovered apps with the same display name. User
 Start Menu entries are checked before system entries.
 
-Shortcuts and ClickOnce entries are launched through `explorer.exe`. Direct
-`.exe` entries are launched by path. If indexing is unsupported, unavailable, or
-empty, the provider records that state and uses a labeled Notepad fallback only
-when there are no configured apps.
+Shortcut-like entries open through the Windows shell. Direct `.exe` entries are
+launched by path. If indexing is unsupported, unavailable, or empty, the
+provider records that state and uses a labeled Notepad fallback only when there
+are no configured apps.
 
 ## Current Limits
 

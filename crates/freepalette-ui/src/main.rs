@@ -156,6 +156,7 @@ fn describe_action(action: &Action) -> String {
             format!("launch {command}")
         }
         Action::LaunchApp { command, args } => format!("launch {command} {}", args.join(" ")),
+        Action::OpenPath { path } => format!("open {path}"),
         Action::RunShell { command } => format!("shell {command}"),
         Action::CopyText { text } => format!("copy {text}"),
         Action::Noop { message } => message.clone(),

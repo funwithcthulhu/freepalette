@@ -24,6 +24,8 @@ the core model settles.
 - Renamed the plugin API query wrapper from `Query` to `SearchQuery`.
 - Rewrote README, architecture, roadmap, contributing, and development docs to
   describe current behavior and limitations more directly.
+- Added Windows shell opening for shortcut-like Start Menu entries instead of
+  representing them as `explorer.exe` commands.
 
 ## 0.3.0 - 2026-05-06
 

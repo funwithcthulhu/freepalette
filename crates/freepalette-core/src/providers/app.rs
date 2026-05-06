@@ -148,11 +148,12 @@ impl Provider for AppLauncherProvider {
     fn execute(&self, action: &Action) -> Result<ActionOutcome, PluginError> {
         match action {
             Action::LaunchApp { command, args } => {
-                Command::new(command).args(args).spawn().map_err(|source| {
-                    PluginError::Action(format!("failed to launch app '{command}': {source}"))
-                })?;
-
+                launch_command(command, args)?;
                 Ok(ActionOutcome::new(format!("launched {command}")))
+            }
+            Action::OpenPath { path } => {
+                open_path_with_default_app(path)?;
+                Ok(ActionOutcome::new(format!("opened {path}")))
             }
             _ => Err(PluginError::UnsupportedAction),
         }
@@ -304,13 +305,57 @@ fn app_result(app: &IndexedApp) -> SearchResult {
         stable_app_id(&app.entry.name),
         app.entry.name.clone(),
         ResultKind::App,
-        Action::LaunchApp {
-            command: app.entry.command.clone(),
-            args: app.entry.args.clone(),
-        },
+        action_for_app(app),
     )
     .with_subtitle(subtitle)
     .with_keywords(app.entry.keywords.clone())
+}
+
+fn action_for_app(app: &IndexedApp) -> Action {
+    if matches!(app.source, AppSource::WindowsStartMenu { .. })
+        && app.entry.args.is_empty()
+        && start_menu_file_extension(Path::new(&app.entry.command))
+            .is_some_and(|extension| is_shell_opened_start_menu_extension(&extension))
+    {
+        Action::OpenPath {
+            path: app.entry.command.clone(),
+        }
+    } else {
+        Action::LaunchApp {
+            command: app.entry.command.clone(),
+            args: app.entry.args.clone(),
+        }
+    }
+}
+
+fn launch_command(command: &str, args: &[String]) -> Result<(), PluginError> {
+    Command::new(command).args(args).spawn().map_err(|source| {
+        PluginError::Action(format!("failed to launch app '{command}': {source}"))
+    })?;
+
+    Ok(())
+}
+
+fn open_path_with_default_app(path: &str) -> Result<(), PluginError> {
+    platform_open_path_with_default_app(Path::new(path)).map_err(|source| {
+        PluginError::Action(format!(
+            "failed to open path '{}' with the default app: {source}",
+            Path::new(path).display()
+        ))
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn platform_open_path_with_default_app(path: &Path) -> Result<(), win_desktop_utils::Error> {
+    win_desktop_utils::open_with_default(path)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn platform_open_path_with_default_app(path: &Path) -> Result<(), String> {
+    Err(format!(
+        "opening paths with the default app is not implemented on this platform: {}",
+        path.display()
+    ))
 }
 
 fn app_index_entry(app: &IndexedApp) -> AppIndexEntry {
@@ -498,12 +543,12 @@ fn scan_start_menu_root(root: &Path, entries: &mut Vec<IndexedApp>) {
 
 fn indexed_app_from_start_menu_file(path: &Path) -> Option<IndexedApp> {
     let extension = start_menu_file_extension(path)?;
-    if !matches!(extension.as_str(), "exe" | "lnk" | "appref-ms") {
+    if !is_supported_start_menu_extension(&extension) {
         return None;
     }
 
     let name = app_name_from_path(path)?;
-    let (command, args) = launch_command_for_path(path, &extension);
+    let (command, args) = launch_command_for_path(path);
     let keywords = keywords_for_discovered_app(path, &extension);
     let entry = AppEntry {
         name,
@@ -530,13 +575,16 @@ fn app_name_from_path(path: &Path) -> Option<String> {
     }
 }
 
-fn launch_command_for_path(path: &Path, extension: &str) -> (String, Vec<String>) {
-    let path = path.to_string_lossy().into_owned();
-    if extension == "exe" {
-        (path, Vec::new())
-    } else {
-        ("explorer.exe".to_string(), vec![path])
-    }
+fn launch_command_for_path(path: &Path) -> (String, Vec<String>) {
+    (path.to_string_lossy().into_owned(), Vec::new())
+}
+
+fn is_supported_start_menu_extension(extension: &str) -> bool {
+    extension == "exe" || is_shell_opened_start_menu_extension(extension)
+}
+
+fn is_shell_opened_start_menu_extension(extension: &str) -> bool {
+    matches!(extension, "lnk" | "appref-ms")
 }
 
 fn keywords_for_discovered_app(path: &Path, extension: &str) -> Vec<String> {
@@ -608,13 +656,30 @@ mod tests {
     }
 
     #[test]
-    fn discovered_shortcut_launches_via_explorer() {
+    fn discovered_shortcut_opens_with_default_app() {
         let path = PathBuf::from("App.lnk");
         let app = indexed_app_from_start_menu_file(&path).expect("lnk should be indexed");
+        let result = app_result(&app);
 
-        assert_eq!(app.entry.command, "explorer.exe");
-        assert_eq!(app.entry.args, vec![path.to_string_lossy().into_owned()]);
+        assert_eq!(app.entry.command, path.to_string_lossy().into_owned());
+        assert!(app.entry.args.is_empty());
         assert_eq!(app.entry.name, "App");
+        assert!(matches!(
+            result.action,
+            Action::OpenPath { ref path } if path == "App.lnk"
+        ));
+    }
+
+    #[test]
+    fn configured_shortcut_keeps_configured_launch_action() {
+        let app = IndexedApp::configured(AppEntry::new("Configured Shortcut", "App.lnk"));
+        let result = app_result(&app);
+
+        assert!(matches!(
+            result.action,
+            Action::LaunchApp { ref command, ref args }
+                if command == "App.lnk" && args.is_empty()
+        ));
     }
 
     #[test]
@@ -755,7 +820,7 @@ mod tests {
             &config,
             Ok(AppIndex {
                 entries: vec![IndexedApp::discovered(
-                    AppEntry::new("Discovered App", "explorer.exe"),
+                    AppEntry::new("Discovered App", "Discovered App.lnk"),
                     PathBuf::from("Discovered App.lnk"),
                 )],
                 roots_checked: 2,

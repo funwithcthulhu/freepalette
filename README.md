@@ -87,8 +87,8 @@ The app provider scans these Start Menu locations when they exist:
 - `%APPDATA%\Microsoft\Windows\Start Menu\Programs`
 - `%ProgramData%\Microsoft\Windows\Start Menu\Programs`
 
-It indexes `.lnk`, `.exe`, and `.appref-ms` files. Shortcuts and ClickOnce
-entries launch through `explorer.exe`; direct `.exe` entries launch by path.
+It indexes `.lnk`, `.exe`, and `.appref-ms` files. Shortcut-like entries open
+through the Windows shell; direct `.exe` entries launch by path.
 Configured app entries win over discovered entries with the same display name.
 
 When indexing is unavailable or empty, the provider records that state and uses

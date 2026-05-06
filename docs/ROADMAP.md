@@ -17,6 +17,7 @@ project settles.
 ### v0.2: Windows App Indexing
 
 - Windows Start Menu scanning for `.lnk`, `.exe`, and `.appref-ms` entries.
+- Windows shell opening for shortcut-like Start Menu entries.
 - Fallback behavior when indexing is unavailable or empty.
 - CLI app index inspection.
 - Explicit CLI execution with `freepalette run`.
