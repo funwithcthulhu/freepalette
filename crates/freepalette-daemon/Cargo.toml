@@ -13,10 +13,12 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow.workspace = true
-freepalette-core = { path = "../freepalette-core" }
 thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+
+[dependencies.freepalette-core]
+path = "../freepalette-core"
 
 [lints]
 workspace = true
