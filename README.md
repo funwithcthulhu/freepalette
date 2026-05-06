@@ -134,6 +134,7 @@ See `docs/ARCHITECTURE.md` for details.
 - `docs/NON_GOALS.md`: what the MVP intentionally excludes.
 - `docs/PLUGIN_MODEL.md`: plugin options and current recommendation.
 - `docs/ROADMAP.md`: staged implementation milestones.
+- `docs/DEVELOPMENT.md`: local development workflow and provider guidance.
 - `docs/GITHUB_SETTINGS.md`: repository settings checklist and current setup.
 - `docs/RELEASES.md`: release process.
 - `docs/GOVERNANCE.md`: maintainer-led governance.

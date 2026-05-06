@@ -62,6 +62,10 @@ start with subprocess JSON-RPC/stdin-stdout plugins. Do not implement plugin
 execution until timeout behavior, permissions, logging, and failure isolation
 are documented.
 
+The current daemon crate is a local service-state layer used by the CLI and UI.
+It should not become an external plugin host until the subprocess protocol,
+permission model, and logging rules are written down first.
+
 ## Current Status
 
 Only built-in providers run today. No external plugin discovery, loading,

@@ -17,6 +17,15 @@ The following areas are security-sensitive:
 Shell commands must never execute automatically from a search query. Execution
 requires explicit user action.
 
+The shared daemon state enforces a shell execution policy. The CLI requires
+`--allow-shell` before executing a shell action, and the minimal UI blocks shell
+execution until a deliberate confirmation flow exists.
+
+The current `freepalette-daemon` crate is local service state, not an IPC
+server. Future IPC, global hotkey, and plugin execution work should treat
+message boundaries and permissions as part of the security model, not as UI
+details.
+
 ## Telemetry And Secrets
 
 freepalette must not collect telemetry. It must not collect secrets. Logs should

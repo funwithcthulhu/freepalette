@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use clap::{Parser, Subcommand};
 use freepalette_core::{
     Action, AppIndexEntry, AppIndexEntrySource, AppIndexReport, Config, RankedResult,
 };
-use freepalette_daemon::{ActionExecutionPolicy, DaemonState};
+use freepalette_daemon::{ActionExecutionPolicy, DaemonError, DaemonState};
 
 #[derive(Debug, Parser)]
 #[command(name = "freepalette")]
@@ -195,11 +195,17 @@ fn run_first_result(
         return Ok(());
     };
 
+    let outcome = match daemon.execute_result(&first.result, policy) {
+        Ok(outcome) => outcome,
+        Err(DaemonError::ShellCommandBlocked) => {
+            bail!("refusing to run shell command without --allow-shell")
+        }
+        Err(error) => return Err(error.into()),
+    };
     println!(
         "Running: [{}] {}",
         first.result.provider, first.result.title
     );
-    let outcome = daemon.execute_result(&first.result, policy)?;
     println!("{}", outcome.message);
     Ok(())
 }

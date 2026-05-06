@@ -12,6 +12,11 @@ the core model settles.
   registry setup, app index refresh, search, and action execution policy.
 - Routed the CLI and minimal UI through the shared daemon state instead of
   constructing provider registries separately.
+- Added CLI integration tests for calculator search, shell search, shell
+  execution gating, and disabled app-provider reporting.
+- Improved the CLI shell-blocked error to point users at `--allow-shell`.
+- Added development documentation and tightened security/plugin/non-goal docs
+  around the daemon boundary.
 
 ## 0.3.0 - 2026-05-06
 
