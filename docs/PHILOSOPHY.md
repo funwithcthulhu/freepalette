@@ -41,3 +41,9 @@ The project must not collect telemetry. Diagnostics should be opt-in and local.
 
 Cloud features are not part of the MVP. Core behavior should not depend on
 hosted services.
+
+## Not A Clone
+
+freepalette belongs to a broad product category, but it should not copy the
+branding, names, UI, or proprietary behavior of any specific launcher or command
+palette.
