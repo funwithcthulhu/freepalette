@@ -16,3 +16,6 @@ the core model settles.
 - Added documentation, CI, and GitHub community files.
 - Added root `LICENSE` for GitHub license detection while keeping the dual
   `MIT OR Apache-2.0` project license.
+- Added Windows Start Menu app indexing behind the app provider, with fallback
+  behavior when indexing is unavailable or empty, plus a small Windows built-in
+  Notepad seed for the basic launcher demo.
