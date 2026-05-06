@@ -39,6 +39,9 @@ why the request fits project scope, and privacy or security implications.
 
 ## Coding Style
 
+Agents and automated coding assistants must follow the standing project
+instructions in `AGENTS.md`.
+
 - Prefer small modules and explicit data flow.
 - Use `thiserror` for library errors and `anyhow` at CLI or application
   boundaries.
