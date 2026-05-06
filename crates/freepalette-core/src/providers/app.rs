@@ -148,6 +148,7 @@ impl IndexedApp {
         }
     }
 
+    #[cfg(any(test, target_os = "windows"))]
     fn known(entry: AppEntry, label: &str) -> Self {
         Self {
             entry,
@@ -161,9 +162,16 @@ impl IndexedApp {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum AppSource {
     Config,
-    Known { label: String },
-    WindowsStartMenu { path: PathBuf },
-    Fallback { reason: String },
+    #[cfg(any(test, target_os = "windows"))]
+    Known {
+        label: String,
+    },
+    WindowsStartMenu {
+        path: PathBuf,
+    },
+    Fallback {
+        reason: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -214,6 +222,7 @@ enum AppIndexError {
 fn app_result(app: &IndexedApp) -> SearchResult {
     let subtitle = match &app.source {
         AppSource::Config => command_summary(&app.entry),
+        #[cfg(any(test, target_os = "windows"))]
         AppSource::Known { label } => format!("{label}: {}", command_summary(&app.entry)),
         AppSource::WindowsStartMenu { path } => format!("Windows Start Menu: {}", path.display()),
         AppSource::Fallback { reason } => format!("Fallback sample: {reason}"),
@@ -501,7 +510,7 @@ mod tests {
 
     #[test]
     fn discovered_shortcut_launches_via_explorer() {
-        let path = PathBuf::from(r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\App.lnk");
+        let path = PathBuf::from("App.lnk");
         let app = app_from_start_menu_file(&path).expect("lnk should be indexed");
 
         assert_eq!(app.entry.command, "explorer.exe");
