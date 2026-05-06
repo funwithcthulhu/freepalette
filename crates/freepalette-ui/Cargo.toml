@@ -15,6 +15,7 @@ path = "src/main.rs"
 anyhow.workspace = true
 eframe.workspace = true
 freepalette-core = { path = "../freepalette-core" }
+freepalette-daemon = { path = "../freepalette-daemon" }
 thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

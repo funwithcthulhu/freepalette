@@ -32,9 +32,14 @@ daemon or global hotkey.
 
 ## v0.4: Global Hotkey + Daemon
 
-- Add a background daemon.
+- Add a shared daemon/service state layer.
+- Wire CLI and UI through the shared state.
+- Add a background daemon process.
 - Register global hotkey on Windows.
 - Provide a path for config reload and provider refresh.
+
+The shared local state layer is present. The remaining v0.4 work is the
+long-running process boundary and Windows global hotkey integration.
 
 ## v0.5: Clipboard History
 

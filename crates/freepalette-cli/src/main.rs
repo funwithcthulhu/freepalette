@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
-use anyhow::{bail, Context};
+use anyhow::Context;
 use clap::{Parser, Subcommand};
 use freepalette_core::{
-    builtin_registry, Action, AppIndexEntry, AppIndexEntrySource, AppIndexReport,
-    AppLauncherProvider, Config, ProviderRegistry, RankedResult,
+    Action, AppIndexEntry, AppIndexEntrySource, AppIndexReport, Config, RankedResult,
 };
+use freepalette_daemon::{ActionExecutionPolicy, DaemonState};
 
 #[derive(Debug, Parser)]
 #[command(name = "freepalette")]
@@ -89,10 +89,8 @@ fn main() -> anyhow::Result<()> {
             json,
             limit,
         } => {
-            let config = load_config(cli.config.as_ref())?;
-            let registry = builtin_registry(&config)?;
-            let limit = limit.unwrap_or(config.general.max_results);
-            let results = registry.search(&query, limit)?;
+            let daemon = load_daemon(cli.config.as_ref())?;
+            let results = daemon.search(&query, limit)?;
 
             if json {
                 println!("{}", serde_json::to_string_pretty(&results)?);
@@ -101,7 +99,7 @@ fn main() -> anyhow::Result<()> {
             }
 
             if run {
-                run_first_result(&registry, &results, allow_shell)?;
+                run_first_result(&daemon, &results, execution_policy(allow_shell))?;
             }
         }
         Commands::Run {
@@ -109,30 +107,25 @@ fn main() -> anyhow::Result<()> {
             allow_shell,
             limit,
         } => {
-            let config = load_config(cli.config.as_ref())?;
-            let registry = builtin_registry(&config)?;
-            let limit = limit.unwrap_or(config.general.max_results);
-            let results = registry.search(&query, limit)?;
-            run_first_result(&registry, &results, allow_shell)?;
+            let daemon = load_daemon(cli.config.as_ref())?;
+            let results = daemon.search(&query, limit)?;
+            run_first_result(&daemon, &results, execution_policy(allow_shell))?;
         }
         Commands::Apps { command } => match command {
             AppsCommand::List { json } => {
-                let config = load_config(cli.config.as_ref())?;
-                let report = app_index_report(&config);
-                print_app_report(&report, json)?;
+                let daemon = load_daemon(cli.config.as_ref())?;
+                print_app_report(daemon.app_index_report(), json)?;
             }
         },
         Commands::Debug { command } => match command {
             DebugCommand::Apps { json } => {
-                let config = load_config(cli.config.as_ref())?;
-                let report = app_index_report(&config);
-                print_app_report(&report, json)?;
+                let daemon = load_daemon(cli.config.as_ref())?;
+                print_app_report(daemon.app_index_report(), json)?;
             }
         },
         Commands::Providers => {
-            let config = load_config(cli.config.as_ref())?;
-            let registry = builtin_registry(&config)?;
-            for provider_id in registry.provider_ids() {
+            let daemon = load_daemon(cli.config.as_ref())?;
+            for provider_id in daemon.provider_ids() {
                 println!("{provider_id}");
             }
         }
@@ -145,16 +138,12 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn load_config(path: Option<&PathBuf>) -> anyhow::Result<Config> {
+fn load_daemon(path: Option<&PathBuf>) -> anyhow::Result<DaemonState> {
     match path {
-        Some(path) => Config::load_from_path(path)
+        Some(path) => DaemonState::load_from_path(path)
             .with_context(|| format!("failed to load config from {}", path.display())),
-        None => Config::load_default_or_default().context("failed to load default config"),
+        None => DaemonState::from_default_config().context("failed to load default config"),
     }
-}
-
-fn app_index_report(config: &Config) -> AppIndexReport {
-    AppLauncherProvider::from_config(config).index_report()
 }
 
 fn print_results(results: &[RankedResult]) {
@@ -197,34 +186,38 @@ fn describe_action(action: &Action) -> String {
 }
 
 fn run_first_result(
-    registry: &ProviderRegistry,
+    daemon: &DaemonState,
     results: &[RankedResult],
-    allow_shell: bool,
+    policy: ActionExecutionPolicy,
 ) -> anyhow::Result<()> {
     let Some(first) = results.first() else {
         println!("Nothing to run");
         return Ok(());
     };
 
-    ensure_action_allowed(&first.result.action, allow_shell)?;
     println!(
         "Running: [{}] {}",
         first.result.provider, first.result.title
     );
-    let outcome = registry.execute(&first.result)?;
+    let outcome = daemon.execute_result(&first.result, policy)?;
     println!("{}", outcome.message);
     Ok(())
 }
 
-fn ensure_action_allowed(action: &Action, allow_shell: bool) -> anyhow::Result<()> {
-    if matches!(action, Action::RunShell { .. }) && !allow_shell {
-        bail!("refusing to run shell command without --allow-shell");
+fn execution_policy(allow_shell: bool) -> ActionExecutionPolicy {
+    if allow_shell {
+        ActionExecutionPolicy::AllowShellCommands
+    } else {
+        ActionExecutionPolicy::BlockShellCommands
     }
-
-    Ok(())
 }
 
-fn print_app_report(report: &AppIndexReport, json: bool) -> anyhow::Result<()> {
+fn print_app_report(report: Option<&AppIndexReport>, json: bool) -> anyhow::Result<()> {
+    let Some(report) = report else {
+        print_disabled_app_report(json)?;
+        return Ok(());
+    };
+
     if json {
         println!("{}", serde_json::to_string_pretty(report)?);
         return Ok(());
@@ -241,6 +234,24 @@ fn print_app_report(report: &AppIndexReport, json: bool) -> anyhow::Result<()> {
             describe_app_entry(entry)
         );
         println!("     source: {}", describe_app_source(entry));
+    }
+
+    Ok(())
+}
+
+fn print_disabled_app_report(json: bool) -> anyhow::Result<()> {
+    if json {
+        let output = serde_json::json!({
+            "summary": "app provider is disabled",
+            "status": {
+                "state": "disabled"
+            },
+            "entries": []
+        });
+        println!("{}", serde_json::to_string_pretty(&output)?);
+    } else {
+        println!("status: app provider is disabled");
+        println!("apps: 0");
     }
 
     Ok(())
@@ -273,22 +284,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn shell_actions_require_allow_shell() {
-        let action = Action::RunShell {
-            command: "echo hello".to_string(),
-        };
-
-        assert!(ensure_action_allowed(&action, false).is_err());
-        assert!(ensure_action_allowed(&action, true).is_ok());
+    fn shell_execution_policy_requires_explicit_allow_flag() {
+        assert_eq!(
+            execution_policy(false),
+            ActionExecutionPolicy::BlockShellCommands
+        );
+        assert_eq!(
+            execution_policy(true),
+            ActionExecutionPolicy::AllowShellCommands
+        );
     }
 
     #[test]
-    fn non_shell_actions_do_not_require_allow_shell() {
-        let action = Action::LaunchApp {
-            command: "notepad.exe".to_string(),
-            args: Vec::new(),
-        };
-
-        assert!(ensure_action_allowed(&action, false).is_ok());
+    fn disabled_app_report_can_be_printed() {
+        print_app_report(None, false).expect("disabled app report should print");
     }
 }

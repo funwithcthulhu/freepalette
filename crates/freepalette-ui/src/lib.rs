@@ -1,10 +1,11 @@
-use freepalette_core::{builtin_registry, Config, CoreError, ProviderRegistry, RankedResult};
+use freepalette_core::{Config, RankedResult};
+use freepalette_daemon::{ActionExecutionPolicy, DaemonError, DaemonState};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum UiError {
     #[error(transparent)]
-    Core(#[from] CoreError),
+    Daemon(#[from] DaemonError),
 }
 
 pub struct PaletteState {
@@ -12,27 +13,26 @@ pub struct PaletteState {
     results: Vec<RankedResult>,
     selected: Option<usize>,
     status: PaletteStatus,
-    max_results: usize,
-    registry: ProviderRegistry,
+    daemon: DaemonState,
 }
 
 impl PaletteState {
     pub fn from_default_config() -> Result<Self, UiError> {
-        Self::from_config(Config::load_default_or_default()?)
+        Ok(Self::from_daemon(DaemonState::from_default_config()?))
     }
 
     pub fn from_config(config: Config) -> Result<Self, UiError> {
-        let max_results = config.general.max_results;
-        let registry = builtin_registry(&config)?;
+        Ok(Self::from_daemon(DaemonState::from_config(config)?))
+    }
 
-        Ok(Self {
+    pub fn from_daemon(daemon: DaemonState) -> Self {
+        Self {
             query: String::new(),
             results: Vec::new(),
             selected: None,
             status: PaletteStatus::Ready,
-            max_results,
-            registry,
-        })
+            daemon,
+        }
     }
 
     pub fn query(&self) -> &str {
@@ -81,7 +81,10 @@ impl PaletteState {
             return;
         };
 
-        match self.registry.execute(&ranked.result) {
+        match self
+            .daemon
+            .execute_result(&ranked.result, ActionExecutionPolicy::BlockShellCommands)
+        {
             Ok(outcome) => {
                 self.status = PaletteStatus::Info(outcome.message);
             }
@@ -99,7 +102,7 @@ impl PaletteState {
             return;
         }
 
-        match self.registry.search(&self.query, self.max_results) {
+        match self.daemon.search(&self.query, None) {
             Ok(results) => {
                 self.selected = if results.is_empty() { None } else { Some(0) };
                 self.results = results;
@@ -217,6 +220,22 @@ mod tests {
         assert_eq!(
             state.status(),
             &PaletteStatus::Info("calculator result ready to copy: 4".to_string())
+        );
+    }
+
+    #[test]
+    fn execute_selected_blocks_shell_commands() {
+        let mut state = PaletteState::from_config(Config::default())
+            .expect("default providers should register");
+
+        state.set_query("> echo hello");
+        state.execute_selected();
+
+        assert_eq!(
+            state.status(),
+            &PaletteStatus::Error(
+                "refusing to run shell command without explicit permission".to_string()
+            )
         );
     }
 }
