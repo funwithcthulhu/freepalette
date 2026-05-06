@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a reproducible problem.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      description: Include version and architecture if relevant.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: freepalette version or commit
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Run ...
+        2. Search ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or output
+      render: text
+    validations:
+      required: false

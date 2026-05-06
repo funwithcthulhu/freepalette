@@ -1,0 +1,39 @@
+[workspace]
+members = [
+    "crates/freepalette-cli",
+    "crates/freepalette-core",
+    "crates/freepalette-daemon",
+    "crates/freepalette-plugin-api",
+    "crates/freepalette-ui",
+]
+resolver = "2"
+
+[workspace.package]
+authors = ["freepalette contributors"]
+description = "A local-first, open-source command palette and app launcher."
+edition = "2021"
+homepage = "https://github.com/funwithcthulhu/freepalette"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/funwithcthulhu/freepalette"
+rust-version = "1.82"
+version = "0.1.0"
+
+[workspace.dependencies]
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+directories = "6.0"
+fuzzy-matcher = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+panic = "warn"
+todo = "warn"
+unimplemented = "warn"

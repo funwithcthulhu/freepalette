@@ -1,0 +1,19 @@
+# Releases
+
+freepalette intends to follow semantic versioning once releases begin.
+
+During 0.x, APIs may change while the core provider model settles. Breaking
+changes should still be documented.
+
+## Changelog
+
+`CHANGELOG.md` is maintained manually.
+
+## Release Checklist
+
+1. Run `cargo fmt --all -- --check`.
+2. Run `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
+3. Run `cargo test --workspace --all-features`.
+4. Update `CHANGELOG.md`.
+5. Tag the release.
+6. Publish crates only when the API is useful and stable enough.

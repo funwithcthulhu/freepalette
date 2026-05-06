@@ -1,0 +1,19 @@
+[general]
+max_results = 10
+
+[providers]
+apps = true
+calculator = true
+shell = true
+clipboard = true
+
+[[apps]]
+name = "Notepad"
+command = "notepad.exe"
+keywords = ["editor", "text", "sample"]
+
+[[apps]]
+name = "Project shell"
+command = "powershell.exe"
+args = ["-NoLogo"]
+keywords = ["terminal", "shell", "sample"]

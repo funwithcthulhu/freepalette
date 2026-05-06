@@ -1,0 +1,21 @@
+[package]
+name = "freepalette-daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Background state owner for freepalette."
+
+[[bin]]
+name = "freepalette-daemon"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+freepalette-core = { path = "../freepalette-core" }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

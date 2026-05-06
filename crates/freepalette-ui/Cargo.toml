@@ -1,0 +1,20 @@
+[package]
+name = "freepalette-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Placeholder UI crate for the future freepalette desktop frontend."
+
+[[bin]]
+name = "freepalette-ui"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

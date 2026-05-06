@@ -1,0 +1,23 @@
+[package]
+name = "freepalette-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Developer and debugging CLI for freepalette."
+
+[[bin]]
+name = "freepalette"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+freepalette-core = { path = "../freepalette-core" }
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true
