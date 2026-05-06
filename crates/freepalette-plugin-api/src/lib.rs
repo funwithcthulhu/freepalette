@@ -97,9 +97,15 @@ pub enum ResultKind {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum Action {
+    /// Spawn an executable or command directly with optional arguments.
     LaunchApp { command: String, args: Vec<String> },
+    /// Open a local path through the platform shell/default application.
+    OpenPath { path: String },
+    /// Run a shell command after explicit caller approval.
     RunShell { command: String },
+    /// Make text available to copy.
     CopyText { text: String },
+    /// Return a message without taking an external action.
     Noop { message: String },
 }
 

@@ -16,5 +16,8 @@ thiserror.workspace = true
 toml.workspace = true
 tracing.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+win-desktop-utils = { version = "0.5.7", default-features = false, features = ["shell"] }
+
 [lints]
 workspace = true

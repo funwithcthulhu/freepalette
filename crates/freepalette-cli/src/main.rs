@@ -179,6 +179,7 @@ fn describe_action(action: &Action) -> String {
     match action {
         Action::LaunchApp { command, args } if args.is_empty() => format!("launch app: {command}"),
         Action::LaunchApp { command, args } => format!("launch app: {command} {}", args.join(" ")),
+        Action::OpenPath { path } => format!("open path: {path}"),
         Action::RunShell { command } => format!("run shell command: {command}"),
         Action::CopyText { text } => format!("copy text: {text}"),
         Action::Noop { message } => format!("no-op: {message}"),
