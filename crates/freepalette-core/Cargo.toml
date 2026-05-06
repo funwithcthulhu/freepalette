@@ -10,11 +10,13 @@ description = "Provider registry, fuzzy search, ranking, config, and built-in pr
 [dependencies]
 directories.workspace = true
 fuzzy-matcher.workspace = true
-freepalette-plugin-api = { path = "../freepalette-plugin-api" }
 serde.workspace = true
 thiserror.workspace = true
 toml.workspace = true
 tracing.workspace = true
+
+[dependencies.freepalette-plugin-api]
+path = "../freepalette-plugin-api"
 
 [lints]
 workspace = true
