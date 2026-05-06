@@ -27,7 +27,7 @@ Configured:
 `main` protection is configured with:
 
 - pull request required before merging
-- 1 required approval
+- 0 required approvals while the project has a single active maintainer
 - stale approvals dismissed when new commits are pushed
 - Code Owners review disabled until `CODEOWNERS` exists
 - required checks: `fmt`, `clippy`, `test`
@@ -37,6 +37,9 @@ Configured:
 - force pushes disabled
 - branch deletion disabled
 - administrators included
+
+When there is more than one active maintainer, raise required approvals back to
+1 so normal peer review is enforced.
 
 ## Desired Repository Settings
 

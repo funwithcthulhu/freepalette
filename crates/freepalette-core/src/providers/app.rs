@@ -9,6 +9,7 @@ use freepalette_plugin_api::{
     Action, ActionOutcome, PluginError, Provider, ProviderId, ResultKind, SearchContext,
     SearchResult,
 };
+use serde::Serialize;
 use thiserror::Error;
 use tracing::debug;
 
@@ -21,6 +22,47 @@ const START_MENU_PROGRAMS: &str = r"Microsoft\Windows\Start Menu\Programs";
 pub struct AppLauncherProvider {
     apps: Vec<IndexedApp>,
     index_status: AppIndexStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AppIndexReport {
+    pub summary: String,
+    pub status: AppIndexReportStatus,
+    pub entries: Vec<AppIndexEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "state", rename_all = "kebab-case")]
+pub enum AppIndexReportStatus {
+    Indexed {
+        roots_checked: usize,
+        discovered: usize,
+    },
+    Empty {
+        roots_checked: usize,
+    },
+    Unavailable {
+        reason: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AppIndexEntry {
+    pub name: String,
+    pub command: String,
+    pub args: Vec<String>,
+    pub keywords: Vec<String>,
+    pub source: AppIndexEntrySource,
+    pub source_detail: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AppIndexEntrySource {
+    Config,
+    Known,
+    WindowsStartMenu,
+    Fallback,
 }
 
 impl AppLauncherProvider {
@@ -83,6 +125,14 @@ impl AppLauncherProvider {
 
     pub fn index_status_summary(&self) -> String {
         self.index_status.summary()
+    }
+
+    pub fn index_report(&self) -> AppIndexReport {
+        AppIndexReport {
+            summary: self.index_status_summary(),
+            status: self.index_status.to_report_status(),
+            entries: self.apps.iter().map(app_index_entry).collect(),
+        }
     }
 }
 
@@ -205,6 +255,24 @@ impl AppIndexStatus {
             }
         }
     }
+
+    fn to_report_status(&self) -> AppIndexReportStatus {
+        match self {
+            Self::Indexed {
+                roots_checked,
+                discovered,
+            } => AppIndexReportStatus::Indexed {
+                roots_checked: *roots_checked,
+                discovered: *discovered,
+            },
+            Self::Empty { roots_checked } => AppIndexReportStatus::Empty {
+                roots_checked: *roots_checked,
+            },
+            Self::Unavailable { reason } => AppIndexReportStatus::Unavailable {
+                reason: reason.clone(),
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -240,6 +308,33 @@ fn app_result(app: &IndexedApp) -> SearchResult {
     )
     .with_subtitle(subtitle)
     .with_keywords(app.entry.keywords.clone())
+}
+
+fn app_index_entry(app: &IndexedApp) -> AppIndexEntry {
+    let (source, source_detail) = app.source.debug_source();
+    AppIndexEntry {
+        name: app.entry.name.clone(),
+        command: app.entry.command.clone(),
+        args: app.entry.args.clone(),
+        keywords: app.entry.keywords.clone(),
+        source,
+        source_detail,
+    }
+}
+
+impl AppSource {
+    fn debug_source(&self) -> (AppIndexEntrySource, Option<String>) {
+        match self {
+            Self::Config => (AppIndexEntrySource::Config, None),
+            #[cfg(any(test, target_os = "windows"))]
+            Self::Known { label } => (AppIndexEntrySource::Known, Some(label.clone())),
+            Self::WindowsStartMenu { path } => (
+                AppIndexEntrySource::WindowsStartMenu,
+                Some(path.display().to_string()),
+            ),
+            Self::Fallback { reason } => (AppIndexEntrySource::Fallback, Some(reason.clone())),
+        }
+    }
 }
 
 fn command_summary(entry: &AppEntry) -> String {
@@ -354,18 +449,23 @@ fn discover_from_roots(roots: &[PathBuf]) -> AppIndexOutcome {
         scan_start_menu_root(root, &mut entries);
     }
 
+    dedupe_discovered_apps(&mut entries);
     entries.sort_by(|left, right| {
         left.entry
             .name
             .to_ascii_lowercase()
             .cmp(&right.entry.name.to_ascii_lowercase())
     });
-    entries.dedup_by(|left, right| left.entry.name.eq_ignore_ascii_case(&right.entry.name));
 
     AppIndexOutcome {
         entries,
         roots_checked: roots.len(),
     }
+}
+
+fn dedupe_discovered_apps(entries: &mut Vec<IndexedApp>) {
+    let mut seen = HashSet::new();
+    entries.retain(|app| seen.insert(app.entry.name.to_ascii_lowercase()));
 }
 
 fn scan_start_menu_root(root: &Path, entries: &mut Vec<IndexedApp>) {
@@ -519,6 +619,28 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_discovered_apps_keep_first_root() {
+        let user_root = temp_root("user-apps");
+        let system_root = temp_root("system-apps");
+        fs::create_dir_all(&user_root).expect("test user start menu should be created");
+        fs::create_dir_all(&system_root).expect("test system start menu should be created");
+        fs::write(user_root.join("Same App.lnk"), "")
+            .expect("test user shortcut should be written");
+        fs::write(system_root.join("Same App.lnk"), "")
+            .expect("test system shortcut should be written");
+
+        let outcome = discover_from_roots(&[user_root.clone(), system_root.clone()]);
+        fs::remove_dir_all(&user_root).expect("test user start menu should be removed");
+        fs::remove_dir_all(&system_root).expect("test system start menu should be removed");
+
+        assert_eq!(outcome.entries.len(), 1);
+        assert!(matches!(
+            &outcome.entries[0].source,
+            AppSource::WindowsStartMenu { path } if path.starts_with(&user_root)
+        ));
+    }
+
+    #[test]
     fn config_entries_win_over_discovered_duplicates() {
         let config = Config {
             apps: vec![AppEntry::new("Notepad", "custom-notepad.exe")],
@@ -616,5 +738,39 @@ mod tests {
                     .as_deref()
                     .is_some_and(|subtitle| subtitle.contains("Windows built-in app"))
         }));
+    }
+
+    #[test]
+    fn app_index_report_includes_entries_and_status() {
+        let config = Config {
+            apps: vec![AppEntry::new("Configured App", "configured.exe")],
+            ..Default::default()
+        };
+        let provider = AppLauncherProvider::from_config_and_index_result(
+            &config,
+            Ok(AppIndexOutcome {
+                entries: vec![IndexedApp::discovered(
+                    AppEntry::new("Discovered App", "explorer.exe"),
+                    PathBuf::from("Discovered App.lnk"),
+                )],
+                roots_checked: 2,
+            }),
+        );
+
+        let report = provider.index_report();
+
+        assert_eq!(report.entries.len(), 2);
+        assert!(matches!(
+            report.status,
+            AppIndexReportStatus::Indexed {
+                roots_checked: 2,
+                discovered: 1
+            }
+        ));
+        assert_eq!(report.entries[0].source, AppIndexEntrySource::Config);
+        assert_eq!(
+            report.entries[1].source,
+            AppIndexEntrySource::WindowsStartMenu
+        );
     }
 }
