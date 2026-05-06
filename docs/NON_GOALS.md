@@ -11,6 +11,8 @@ The MVP does not include:
 - full replacement of mature launchers immediately
 - plugin execution before the security model is documented
 - automatic shell command execution without explicit user action
+- copying proprietary UI, branding, names, or behavior from any referenced tool
+- AI-first positioning
 
 These are intentional limits. They keep the project local-first, understandable,
 and easier to review.

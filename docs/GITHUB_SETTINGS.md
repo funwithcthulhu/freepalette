@@ -1,6 +1,44 @@
-# GitHub Settings Checklist
+# GitHub Settings
 
-## Repository
+This file records the intended repository settings and the current setup.
+
+## Current Setup
+
+Configured:
+
+- Visibility: Public
+- Default branch: main
+- Issues: enabled
+- Discussions: disabled until there is a first usable release
+- Wiki: disabled
+- Projects: disabled initially
+- Squash merging: enabled
+- Merge commits: disabled
+- Rebase merging: disabled initially
+- Always suggest updating pull request branches: enabled
+- Automatically delete head branches: enabled
+- Require contributors to sign off: disabled
+- Dependabot alerts: enabled
+- Dependabot security updates: enabled
+- Secret scanning: enabled
+- Push protection: enabled
+- Code scanning: not enabled initially
+
+`main` protection is configured with:
+
+- pull request required before merging
+- 1 required approval
+- stale approvals dismissed when new commits are pushed
+- Code Owners review disabled until `CODEOWNERS` exists
+- required checks: `fmt`, `clippy`, `test`
+- branches required to be up to date before merging
+- conversation resolution required
+- linear history required
+- force pushes disabled
+- branch deletion disabled
+- administrators included
+
+## Desired Repository Settings
 
 - Visibility: Public
 - Default branch: main

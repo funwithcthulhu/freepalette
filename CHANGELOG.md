@@ -14,3 +14,5 @@ the core model settles.
 - Added CLI search and provider listing commands.
 - Added daemon and UI placeholder crates.
 - Added documentation, CI, and GitHub community files.
+- Added root `LICENSE` for GitHub license detection while keeping the dual
+  `MIT OR Apache-2.0` project license.

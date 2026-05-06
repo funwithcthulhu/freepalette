@@ -9,6 +9,12 @@ changes should still be documented.
 
 `CHANGELOG.md` is maintained manually.
 
+## Licensing
+
+Crates should keep `license = "MIT OR Apache-2.0"`. The repository keeps
+`LICENSE-MIT`, `LICENSE-APACHE`, and a root `LICENSE` file for GitHub license
+detection.
+
 ## Release Checklist
 
 1. Run `cargo fmt --all -- --check`.
