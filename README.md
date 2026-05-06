@@ -4,19 +4,20 @@ freepalette is a local-first, open-source command palette and launcher written i
 
 ## Status
 
-This project is early-stage. The current repository is a foundation for the core
-search and provider model, not a complete desktop launcher.
+freepalette is early-stage. The repository currently provides a Rust core,
+provider model, CLI, documentation, and project infrastructure. It is not yet a
+complete desktop launcher.
 
 ## What It Is
 
-freepalette is a fast, boring, dependable desktop utility for finding commands
-and launching local actions from the keyboard. It is inspired by the general
-tradition of tools like Alfred, Raycast, Microsoft PowerToys Run, Ulauncher,
-Apple Spotlight, and editor command palettes.
+freepalette is a keyboard-first desktop utility for searching local commands and
+launching explicit local actions. It is inspired by the general tradition of
+desktop launchers and command palettes, including Alfred, Raycast, Microsoft
+PowerToys Run, Ulauncher, Apple Spotlight, and editor command palettes.
 
-It is not affiliated with Alfred, Raycast, Microsoft PowerToys, Ulauncher, Apple
-Spotlight, or any other referenced product. It must not copy branding, names,
-UI, or proprietary behavior from any specific product.
+freepalette is not affiliated with Alfred, Raycast, Microsoft PowerToys,
+Ulauncher, Apple Spotlight, or any other referenced product. It must not copy
+branding, names, UI, or proprietary behavior from any specific product.
 
 ## What It Is Not
 
@@ -29,21 +30,30 @@ UI, or proprietary behavior from any specific product.
 
 ## Local-First And Privacy
 
-freepalette should work without an account, without cloud sync, and without
-network access for core launcher behavior. The project does not collect
-telemetry. Command execution, clipboard history, and plugins are treated as
-security-sensitive areas.
+Core launcher behavior should work without an account, cloud service, or network
+connection. freepalette does not collect telemetry. Command execution, clipboard
+history, and future plugins are treated as security-sensitive areas.
 
-## MVP Goals
+## Current MVP
+
+Implemented now:
 
 - CLI search over built-in providers.
-- Calculator queries such as `calc 2+2`.
-- Shell command queries prefixed with `>`.
+- Calculator queries prefixed with `calc`, such as `calc 2+2`.
+- Shell command queries prefixed with `>`, displayed as actions by default.
 - Stub app launcher provider with sample entries.
-- Stub clipboard provider with documented platform limitations.
-- TOML config loading.
+- Stub clipboard provider.
+- TOML config loading from a path.
 - Fuzzy search and simple documented ranking.
-- Clear plugin boundary without external plugin execution yet.
+- Provider/action API boundary for built-in providers and future plugin design.
+
+Intentionally not implemented yet:
+
+- real platform app indexing
+- clipboard capture or persistence
+- global hotkey daemon behavior
+- GUI beyond a placeholder crate
+- external plugin execution
 
 ## Build
 
@@ -62,11 +72,21 @@ cargo run -p freepalette-cli -- search "notepad"
 cargo run -p freepalette-cli -- providers
 ```
 
-Shell commands are displayed as actions by default. Use `--run` only when you
-intend to execute the selected result:
+Shell command search returns an action. It does not execute by default. Use
+`--run` only when you intend to execute the selected result:
 
 ```powershell
 cargo run -p freepalette-cli -- search "> echo hello" --run
+```
+
+## Config
+
+See `examples/config/freepalette.toml`.
+
+The CLI can print the default future config path for the current platform:
+
+```powershell
+cargo run -p freepalette-cli -- config-path
 ```
 
 ## Architecture Overview
@@ -74,23 +94,39 @@ cargo run -p freepalette-cli -- search "> echo hello" --run
 - `freepalette-core`: config loading, provider registry, fuzzy search, ranking,
   and built-in providers.
 - `freepalette-cli`: developer and user CLI for testing search and providers.
-- `freepalette-daemon`: future background state for hotkeys, indexing,
-  clipboard history, and provider refresh.
-- `freepalette-plugin-api`: stable public API types for future plugins.
+- `freepalette-daemon`: placeholder for future hotkeys, indexing, clipboard
+  state, config reload, and provider refresh.
+- `freepalette-plugin-api`: public provider and action API types.
 - `freepalette-ui`: placeholder crate for the eventual GUI. The likely frontend
   direction is Tauri v2 with a thin Svelte UI after the Rust core settles.
 
 See `docs/ARCHITECTURE.md` for details.
 
+## Documentation
+
+- `docs/PHILOSOPHY.md`: project values and constraints.
+- `docs/NON_GOALS.md`: what the MVP intentionally excludes.
+- `docs/PLUGIN_MODEL.md`: plugin options and current recommendation.
+- `docs/ROADMAP.md`: staged implementation milestones.
+- `docs/GITHUB_SETTINGS.md`: repository settings checklist and current setup.
+- `docs/RELEASES.md`: release process.
+- `docs/GOVERNANCE.md`: maintainer-led governance.
+
 ## Contributing
 
-Contributions should keep the project small, local-first, and easy to review.
-Read `CONTRIBUTING.md`, `docs/NON_GOALS.md`, and `docs/PHILOSOPHY.md` before
-larger changes.
+Contributions should keep the project small, local-first, no-telemetry, and easy
+to review. Read `CONTRIBUTING.md`, `docs/NON_GOALS.md`, and
+`docs/PHILOSOPHY.md` before larger changes.
 
 ## License
 
-Licensed under either of:
+freepalette uses the standard Rust ecosystem dual license:
 
 - MIT license, see `LICENSE-MIT`
 - Apache License, Version 2.0, see `LICENSE-APACHE`
+
+Cargo package metadata is set to `MIT OR Apache-2.0`.
+
+The root `LICENSE` file contains the MIT license text so GitHub can display a
+known license in the repository sidebar. The full project licensing choice
+remains `MIT OR Apache-2.0`.

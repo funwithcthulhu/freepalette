@@ -63,3 +63,9 @@ New providers should include:
 Do not add cloud sync, accounts, AI assistant behavior, plugin marketplace
 features, or automatic shell command execution. If a feature changes the
 security model, start with a design issue before code.
+
+## Licensing
+
+New code is contributed under `MIT OR Apache-2.0`, matching the workspace Cargo
+metadata. Keep license references in README and release docs up to date when
+repository metadata changes.

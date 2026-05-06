@@ -18,7 +18,8 @@
 ## v0.3: Minimal GUI
 
 - Choose the GUI shell.
-- Build a thin frontend over the Rust core.
+- Build a thin frontend over the Rust core, likely Tauri v2 and Svelte if that
+  remains the simplest maintainable path.
 - Support search input, result list, keyboard navigation, and explicit action.
 
 ## v0.4: Global Hotkey + Daemon
