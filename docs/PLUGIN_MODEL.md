@@ -61,3 +61,8 @@ Use built-in Rust providers for MVP features. When external plugins are added,
 start with subprocess JSON-RPC/stdin-stdout plugins. Do not implement plugin
 execution until timeout behavior, permissions, logging, and failure isolation
 are documented.
+
+## Current Status
+
+Only built-in providers run today. No external plugin discovery, loading,
+execution, marketplace, signing, or update mechanism exists yet.
