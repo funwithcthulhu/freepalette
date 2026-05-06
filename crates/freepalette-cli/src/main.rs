@@ -1,8 +1,11 @@
 use std::path::PathBuf;
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use clap::{Parser, Subcommand};
-use freepalette_core::{builtin_registry, Action, Config, ProviderRegistry, RankedResult};
+use freepalette_core::{
+    builtin_registry, Action, AppIndexEntry, AppIndexEntrySource, AppIndexReport,
+    AppLauncherProvider, Config, ProviderRegistry, RankedResult,
+};
 
 #[derive(Debug, Parser)]
 #[command(name = "freepalette")]
@@ -21,15 +24,53 @@ enum Commands {
         query: String,
         #[arg(short, long)]
         run: bool,
+        #[arg(long)]
+        allow_shell: bool,
         #[arg(short, long)]
         json: bool,
         #[arg(short, long)]
         limit: Option<usize>,
     },
+    /// Run the top ranked result for a query.
+    Run {
+        query: String,
+        #[arg(long)]
+        allow_shell: bool,
+        #[arg(short, long)]
+        limit: Option<usize>,
+    },
+    /// Inspect indexed applications.
+    Apps {
+        #[command(subcommand)]
+        command: AppsCommand,
+    },
+    /// Debug provider state.
+    Debug {
+        #[command(subcommand)]
+        command: DebugCommand,
+    },
     /// List registered providers.
     Providers,
     /// Print the default config path for this platform.
     ConfigPath,
+}
+
+#[derive(Debug, Subcommand)]
+enum AppsCommand {
+    /// List app provider entries and indexing status.
+    List {
+        #[arg(short, long)]
+        json: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum DebugCommand {
+    /// Print app provider indexing status and entries.
+    Apps {
+        #[arg(short, long)]
+        json: bool,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -44,6 +85,7 @@ fn main() -> anyhow::Result<()> {
         Commands::Search {
             query,
             run,
+            allow_shell,
             json,
             limit,
         } => {
@@ -59,9 +101,34 @@ fn main() -> anyhow::Result<()> {
             }
 
             if run {
-                run_first_result(&registry, &results)?;
+                run_first_result(&registry, &results, allow_shell)?;
             }
         }
+        Commands::Run {
+            query,
+            allow_shell,
+            limit,
+        } => {
+            let config = load_config(cli.config.as_ref())?;
+            let registry = builtin_registry(&config)?;
+            let limit = limit.unwrap_or(config.general.max_results);
+            let results = registry.search(&query, limit)?;
+            run_first_result(&registry, &results, allow_shell)?;
+        }
+        Commands::Apps { command } => match command {
+            AppsCommand::List { json } => {
+                let config = load_config(cli.config.as_ref())?;
+                let report = app_index_report(&config);
+                print_app_report(&report, json)?;
+            }
+        },
+        Commands::Debug { command } => match command {
+            DebugCommand::Apps { json } => {
+                let config = load_config(cli.config.as_ref())?;
+                let report = app_index_report(&config);
+                print_app_report(&report, json)?;
+            }
+        },
         Commands::Providers => {
             let config = load_config(cli.config.as_ref())?;
             let registry = builtin_registry(&config)?;
@@ -84,6 +151,10 @@ fn load_config(path: Option<&PathBuf>) -> anyhow::Result<Config> {
             .with_context(|| format!("failed to load config from {}", path.display())),
         None => Config::load_default_or_default().context("failed to load default config"),
     }
+}
+
+fn app_index_report(config: &Config) -> AppIndexReport {
+    AppLauncherProvider::from_config(config).index_report()
 }
 
 fn print_results(results: &[RankedResult]) {
@@ -125,13 +196,99 @@ fn describe_action(action: &Action) -> String {
     }
 }
 
-fn run_first_result(registry: &ProviderRegistry, results: &[RankedResult]) -> anyhow::Result<()> {
+fn run_first_result(
+    registry: &ProviderRegistry,
+    results: &[RankedResult],
+    allow_shell: bool,
+) -> anyhow::Result<()> {
     let Some(first) = results.first() else {
         println!("Nothing to run");
         return Ok(());
     };
 
+    ensure_action_allowed(&first.result.action, allow_shell)?;
+    println!(
+        "Running: [{}] {}",
+        first.result.provider, first.result.title
+    );
     let outcome = registry.execute(&first.result)?;
     println!("{}", outcome.message);
     Ok(())
+}
+
+fn ensure_action_allowed(action: &Action, allow_shell: bool) -> anyhow::Result<()> {
+    if matches!(action, Action::RunShell { .. }) && !allow_shell {
+        bail!("refusing to run shell command without --allow-shell");
+    }
+
+    Ok(())
+}
+
+fn print_app_report(report: &AppIndexReport, json: bool) -> anyhow::Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(report)?);
+        return Ok(());
+    }
+
+    println!("status: {}", report.summary);
+    println!("apps: {}", report.entries.len());
+
+    for (index, entry) in report.entries.iter().enumerate() {
+        println!(
+            "{:>3}. {} - {}",
+            index + 1,
+            entry.name,
+            describe_app_entry(entry)
+        );
+        println!("     source: {}", describe_app_source(entry));
+    }
+
+    Ok(())
+}
+
+fn describe_app_entry(entry: &AppIndexEntry) -> String {
+    if entry.args.is_empty() {
+        entry.command.clone()
+    } else {
+        format!("{} {}", entry.command, entry.args.join(" "))
+    }
+}
+
+fn describe_app_source(entry: &AppIndexEntry) -> String {
+    let source = match entry.source {
+        AppIndexEntrySource::Config => "config",
+        AppIndexEntrySource::Known => "known",
+        AppIndexEntrySource::WindowsStartMenu => "windows-start-menu",
+        AppIndexEntrySource::Fallback => "fallback",
+    };
+
+    match entry.source_detail.as_deref() {
+        Some(detail) => format!("{source} ({detail})"),
+        None => source.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shell_actions_require_allow_shell() {
+        let action = Action::RunShell {
+            command: "echo hello".to_string(),
+        };
+
+        assert!(ensure_action_allowed(&action, false).is_err());
+        assert!(ensure_action_allowed(&action, true).is_ok());
+    }
+
+    #[test]
+    fn non_shell_actions_do_not_require_allow_shell() {
+        let action = Action::LaunchApp {
+            command: "notepad.exe".to_string(),
+            args: Vec::new(),
+        };
+
+        assert!(ensure_action_allowed(&action, false).is_ok());
+    }
 }

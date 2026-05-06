@@ -14,6 +14,8 @@
 - Discover Start Menu applications on Windows.
 - Keep app indexing behind provider boundaries.
 - Preserve clear fallback behavior when indexing is unavailable.
+- Add CLI inspection for app indexing state.
+- Add explicit CLI execution through `freepalette run`.
 
 Initial implementation is present. Future work can improve shortcut metadata,
 icons, app refresh behavior, and Windows-specific launch fidelity.

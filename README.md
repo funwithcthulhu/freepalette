@@ -42,6 +42,8 @@ Implemented now:
 - Calculator queries prefixed with `calc`, such as `calc 2+2`.
 - Shell command queries prefixed with `>`, displayed as actions by default.
 - Windows app launcher provider that indexes Start Menu entries.
+- App index inspection through `apps list` and `debug apps`.
+- Explicit top-result execution through `run`.
 - Stub clipboard provider.
 - TOML config loading from a path.
 - Fuzzy search and simple documented ranking.
@@ -76,14 +78,25 @@ cargo test --workspace --all-features
 cargo run -p freepalette-cli -- search "calc 2+2"
 cargo run -p freepalette-cli -- search "> echo hello"
 cargo run -p freepalette-cli -- search "notepad"
+cargo run -p freepalette-cli -- apps list
+cargo run -p freepalette-cli -- debug apps
 cargo run -p freepalette-cli -- providers
 ```
 
-Shell command search returns an action. It does not execute by default. Use
-`--run` only when you intend to execute the selected result:
+Shell command search returns an action. It does not execute by default. Use the
+explicit `run` command only when you intend to execute the selected result.
+Shell actions also require `--allow-shell`:
 
 ```powershell
-cargo run -p freepalette-cli -- search "> echo hello" --run
+cargo run -p freepalette-cli -- run "notepad"
+cargo run -p freepalette-cli -- run "> echo hello" --allow-shell
+```
+
+For development and debugging, `search --run` remains available. It follows the
+same shell safety rule:
+
+```powershell
+cargo run -p freepalette-cli -- search "> echo hello" --run --allow-shell
 ```
 
 ## Config
@@ -100,7 +113,8 @@ cargo run -p freepalette-cli -- config-path
 
 - `freepalette-core`: config loading, provider registry, fuzzy search, ranking,
   Windows Start Menu app indexing, and built-in providers.
-- `freepalette-cli`: developer and user CLI for testing search and providers.
+- `freepalette-cli`: developer and user CLI for testing search, app indexing,
+  provider state, and explicit result execution.
 - `freepalette-daemon`: placeholder for future hotkeys, indexing, clipboard
   state, config reload, and provider refresh.
 - `freepalette-plugin-api`: public provider and action API types.

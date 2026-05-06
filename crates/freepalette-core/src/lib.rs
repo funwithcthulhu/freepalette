@@ -12,7 +12,10 @@ pub use error::CoreError;
 pub use freepalette_plugin_api::{
     Action, ActionOutcome, Provider, ProviderId, Query, ResultKind, SearchContext, SearchResult,
 };
-pub use providers::{builtin_registry, BuiltinProviderSet};
+pub use providers::{
+    builtin_registry, AppIndexEntry, AppIndexEntrySource, AppIndexReport, AppIndexReportStatus,
+    AppLauncherProvider, BuiltinProviderSet,
+};
 pub use ranking::{rank_results, RankedResult};
 pub use registry::ProviderRegistry;
 

@@ -43,7 +43,8 @@ Built-in providers currently include:
 
 ### freepalette-cli
 
-Provides commands for testing providers and search behavior without a GUI.
+Provides commands for testing providers, search behavior, indexed apps, and
+explicit action execution without a GUI.
 
 ### freepalette-daemon
 
@@ -71,6 +72,10 @@ thin Svelte frontend after the Rust core API settles.
 6. Display results in the CLI, daemon client, or future UI.
 7. Execute an `Action` only after explicit user selection.
 
+The CLI exposes app-index inspection through `freepalette apps list` and
+`freepalette debug apps`. Both commands use the app provider's debug report
+rather than duplicating platform indexing logic in the CLI.
+
 ## Ranking Model
 
 The ranking model is intentionally small:
@@ -90,6 +95,10 @@ Search and execution are separate. Providers return `SearchResult` values with
 an `Action`, but the core should only execute an action after explicit user
 selection. This is especially important for shell commands, clipboard writes,
 app launching, and future plugins.
+
+The CLI's `run` command executes the top ranked result for a query. Shell
+actions are additionally gated behind `--allow-shell`, including when using the
+developer-oriented `search --run` path.
 
 ## Platform Boundaries
 
@@ -117,6 +126,10 @@ It scans recursively for `.lnk`, `.exe`, and `.appref-ms` files. Configured app
 entries are loaded first and win over discovered entries with the same display
 name. Shortcuts and ClickOnce references launch through `explorer.exe`; direct
 executables launch by path.
+
+When the same app name is discovered from multiple Start Menu roots, the earlier
+root wins. This lets user-level Start Menu entries take precedence over
+system-level entries before the final display list is sorted by app name.
 
 The provider also seeds a small Windows built-in Notepad entry. This keeps the
 basic `freepalette search "notepad"` demo dependable on Windows machines where

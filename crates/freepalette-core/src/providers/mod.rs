@@ -3,7 +3,9 @@ mod calculator;
 mod clipboard;
 mod shell;
 
-pub use app::AppLauncherProvider;
+pub use app::{
+    AppIndexEntry, AppIndexEntrySource, AppIndexReport, AppIndexReportStatus, AppLauncherProvider,
+};
 pub use calculator::CalculatorProvider;
 pub use clipboard::ClipboardHistoryProvider;
 pub use shell::ShellCommandProvider;
