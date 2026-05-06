@@ -10,6 +10,9 @@ the core model settles.
 
 - Removed the duplicate root `LICENSE` file and restored the standard
   dual-license layout with `LICENSE-APACHE` and `LICENSE-MIT`.
+- Added the first minimal desktop UI in `freepalette-ui` using `eframe`/`egui`,
+  with search input, result list, keyboard selection, Enter execution, and
+  Escape close.
 
 ## 0.2.0 - 2026-05-06
 

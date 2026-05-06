@@ -23,9 +23,12 @@ icons, app refresh behavior, and Windows-specific launch fidelity.
 ## v0.3: Minimal GUI
 
 - Choose the GUI shell.
-- Build a thin frontend over the Rust core, likely Tauri v2 and Svelte if that
-  remains the simplest maintainable path.
+- Build a thin frontend over the Rust core.
 - Support search input, result list, keyboard navigation, and explicit action.
+
+Initial implementation is present with `eframe`/`egui`. Future work can refine
+window behavior, styling, launch feedback, and accessibility before adding a
+daemon or global hotkey.
 
 ## v0.4: Global Hotkey + Daemon
 

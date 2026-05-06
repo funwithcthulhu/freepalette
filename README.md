@@ -44,6 +44,7 @@ Implemented now:
 - Windows app launcher provider that indexes Start Menu entries.
 - App index inspection through `apps list` and `debug apps`.
 - Explicit top-result execution through `run`.
+- Minimal desktop UI through `freepalette-ui`.
 - Stub clipboard provider.
 - TOML config loading from a path.
 - Fuzzy search and simple documented ranking.
@@ -54,7 +55,6 @@ Intentionally not implemented yet:
 - macOS and Linux app indexing
 - clipboard capture or persistence
 - global hotkey daemon behavior
-- GUI beyond a placeholder crate
 - external plugin execution
 
 Windows app indexing currently scans user and system Start Menu `Programs`
@@ -81,6 +81,7 @@ cargo run -p freepalette-cli -- search "notepad"
 cargo run -p freepalette-cli -- apps list
 cargo run -p freepalette-cli -- debug apps
 cargo run -p freepalette-cli -- providers
+cargo run -p freepalette-ui
 ```
 
 Shell command search returns an action. It does not execute by default. Use the
@@ -118,8 +119,9 @@ cargo run -p freepalette-cli -- config-path
 - `freepalette-daemon`: placeholder for future hotkeys, indexing, clipboard
   state, config reload, and provider refresh.
 - `freepalette-plugin-api`: public provider and action API types.
-- `freepalette-ui`: placeholder crate for the eventual GUI. The likely frontend
-  direction is Tauri v2 with a thin Svelte UI after the Rust core settles.
+- `freepalette-ui`: minimal desktop palette built with `eframe`/`egui` over the
+  Rust core. A future Tauri frontend remains possible if it becomes the simpler
+  long-term path.
 
 See `docs/ARCHITECTURE.md` for details.
 

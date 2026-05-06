@@ -2,9 +2,8 @@
 
 freepalette is a Rust workspace with a small core and thin outer crates.
 
-The current architecture is Rust-core-first. The GUI is intentionally deferred
-until search, provider behavior, config loading, and security boundaries are
-clear enough to support a thin frontend.
+The current architecture is Rust-core-first. The GUI is intentionally thin and
+uses the same provider registry, search, ranking, and execution path as the CLI.
 
 ## Crates
 
@@ -58,8 +57,14 @@ Placeholder for future long-running state:
 
 ### freepalette-ui
 
-Placeholder crate for the future GUI. The likely direction is Tauri v2 with a
-thin Svelte frontend after the Rust core API settles.
+Minimal desktop palette built with `eframe`/`egui`. It owns only UI state:
+search text, ranked results, selected row, and status messages. Search and
+execution still go through `freepalette-core`.
+
+The first GUI pass uses `eframe` because the standard library has no desktop
+windowing or widget layer, and a Rust-native dependency keeps the build smaller
+than introducing a web frontend and Node toolchain at this stage. A future
+Tauri frontend remains possible if it becomes the simpler long-term path.
 
 ## Search Flow
 
@@ -75,6 +80,9 @@ thin Svelte frontend after the Rust core API settles.
 The CLI exposes app-index inspection through `freepalette apps list` and
 `freepalette debug apps`. Both commands use the app provider's debug report
 rather than duplicating platform indexing logic in the CLI.
+
+The UI follows the same core search flow directly. It does not talk to a daemon
+yet.
 
 ## Ranking Model
 
@@ -113,6 +121,7 @@ Current limitations:
 - clipboard capture is not implemented
 - global hotkeys are not implemented
 - config watching is not implemented
+- the GUI has no tray behavior, daemon integration, or global hotkey yet
 
 ## Windows App Indexing
 
