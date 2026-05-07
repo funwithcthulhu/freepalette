@@ -3,6 +3,13 @@ use serde::Serialize;
 
 use crate::fuzzy::fuzzy_score;
 
+const EXACT_TITLE_MATCH_BONUS: i64 = 300;
+const PREFIX_TITLE_MATCH_BONUS: i64 = 120;
+const APP_RESULT_BIAS: i64 = 30;
+const CALCULATOR_RESULT_BIAS: i64 = 25;
+const SHELL_RESULT_BIAS: i64 = 20;
+const CLIPBOARD_RESULT_BIAS: i64 = 10;
+
 /// A result after applying the core ranking model.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RankedResult {
@@ -45,9 +52,9 @@ fn rank_result(query: &str, result: SearchResult) -> Option<RankedResult> {
     let title = result.title.to_ascii_lowercase();
     let query_lower = trimmed_query.to_ascii_lowercase();
     let exact_bonus = if !query_lower.is_empty() && title == query_lower {
-        300
+        EXACT_TITLE_MATCH_BONUS
     } else if !query_lower.is_empty() && title.starts_with(&query_lower) {
-        120
+        PREFIX_TITLE_MATCH_BONUS
     } else {
         0
     };
@@ -69,10 +76,10 @@ fn result_haystack(result: &SearchResult) -> String {
 
 fn kind_bias(kind: ResultKind) -> i64 {
     match kind {
-        ResultKind::App => 30,
-        ResultKind::Calculator => 25,
-        ResultKind::Shell => 20,
-        ResultKind::Clipboard => 10,
+        ResultKind::App => APP_RESULT_BIAS,
+        ResultKind::Calculator => CALCULATOR_RESULT_BIAS,
+        ResultKind::Shell => SHELL_RESULT_BIAS,
+        ResultKind::Clipboard => CLIPBOARD_RESULT_BIAS,
         ResultKind::Plugin | ResultKind::System => 0,
     }
 }
@@ -118,5 +125,27 @@ mod tests {
 
         assert_eq!(ranked.len(), 1);
         assert_eq!(ranked[0].result.kind, ResultKind::Calculator);
+    }
+
+    #[test]
+    fn equal_scores_sort_by_title_then_id() {
+        let mut alpha_second = result("Alpha", ResultKind::System, 0);
+        alpha_second.id = "b".to_string();
+        let mut alpha_first = result("Alpha", ResultKind::System, 0);
+        alpha_first.id = "a".to_string();
+
+        let ranked = rank_results(
+            "",
+            vec![
+                result("Beta", ResultKind::System, 0),
+                alpha_second,
+                alpha_first,
+            ],
+        );
+
+        assert_eq!(ranked[0].result.title, "Alpha");
+        assert_eq!(ranked[0].result.id, "a");
+        assert_eq!(ranked[1].result.id, "b");
+        assert_eq!(ranked[2].result.title, "Beta");
     }
 }

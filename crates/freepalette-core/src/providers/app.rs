@@ -67,20 +67,20 @@ pub enum AppIndexEntrySource {
 
 impl AppLauncherProvider {
     pub fn from_config(config: &Config) -> Self {
-        Self::from_config_sources(config, discover_platform_apps(), platform_known_apps())
+        Self::from_config_sources(config, index_platform_apps(), platform_known_apps())
     }
 
     #[cfg(test)]
     fn from_config_and_index_result(
         config: &Config,
-        index_result: Result<AppIndexOutcome, AppIndexError>,
+        index_result: Result<AppIndex, AppIndexError>,
     ) -> Self {
         Self::from_config_sources(config, index_result, Vec::new())
     }
 
     fn from_config_sources(
         config: &Config,
-        index_result: Result<AppIndexOutcome, AppIndexError>,
+        index_result: Result<AppIndex, AppIndexError>,
         known_apps: Vec<IndexedApp>,
     ) -> Self {
         let mut apps = config
@@ -148,12 +148,12 @@ impl Provider for AppLauncherProvider {
     fn execute(&self, action: &Action) -> Result<ActionOutcome, PluginError> {
         match action {
             Action::LaunchApp { command, args } => {
-                Command::new(command)
-                    .args(args)
-                    .spawn()
-                    .map_err(|source| PluginError::Action(source.to_string()))?;
-
+                launch_command(command, args)?;
                 Ok(ActionOutcome::new(format!("launched {command}")))
+            }
+            Action::OpenPath { path } => {
+                open_path_with_default_app(path)?;
+                Ok(ActionOutcome::new(format!("opened {path}")))
             }
             _ => Err(PluginError::UnsupportedAction),
         }
@@ -276,15 +276,19 @@ impl AppIndexStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct AppIndexOutcome {
+struct AppIndex {
     entries: Vec<IndexedApp>,
     roots_checked: usize,
 }
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 enum AppIndexError {
-    #[error("{0}")]
-    Unavailable(String),
+    #[cfg(any(test, not(target_os = "windows")))]
+    #[error("Windows Start Menu indexing is only available on Windows")]
+    UnsupportedPlatform,
+    #[cfg(target_os = "windows")]
+    #[error("missing Windows Start Menu environment: APPDATA and ProgramData are not set")]
+    MissingStartMenuEnvironment,
 }
 
 fn app_result(app: &IndexedApp) -> SearchResult {
@@ -301,13 +305,57 @@ fn app_result(app: &IndexedApp) -> SearchResult {
         stable_app_id(&app.entry.name),
         app.entry.name.clone(),
         ResultKind::App,
-        Action::LaunchApp {
-            command: app.entry.command.clone(),
-            args: app.entry.args.clone(),
-        },
+        action_for_app(app),
     )
     .with_subtitle(subtitle)
     .with_keywords(app.entry.keywords.clone())
+}
+
+fn action_for_app(app: &IndexedApp) -> Action {
+    if matches!(app.source, AppSource::WindowsStartMenu { .. })
+        && app.entry.args.is_empty()
+        && start_menu_file_extension(Path::new(&app.entry.command))
+            .is_some_and(|extension| is_shell_opened_start_menu_extension(&extension))
+    {
+        Action::OpenPath {
+            path: app.entry.command.clone(),
+        }
+    } else {
+        Action::LaunchApp {
+            command: app.entry.command.clone(),
+            args: app.entry.args.clone(),
+        }
+    }
+}
+
+fn launch_command(command: &str, args: &[String]) -> Result<(), PluginError> {
+    Command::new(command).args(args).spawn().map_err(|source| {
+        PluginError::Action(format!("failed to launch app '{command}': {source}"))
+    })?;
+
+    Ok(())
+}
+
+fn open_path_with_default_app(path: &str) -> Result<(), PluginError> {
+    platform_open_path_with_default_app(Path::new(path)).map_err(|source| {
+        PluginError::Action(format!(
+            "failed to open path '{}' with the default app: {source}",
+            Path::new(path).display()
+        ))
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn platform_open_path_with_default_app(path: &Path) -> Result<(), win_desktop_utils::Error> {
+    win_desktop_utils::open_with_default(path)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn platform_open_path_with_default_app(path: &Path) -> Result<(), String> {
+    Err(format!(
+        "opening paths with the default app is not implemented on this platform: {}",
+        path.display()
+    ))
 }
 
 fn app_index_entry(app: &IndexedApp) -> AppIndexEntry {
@@ -410,9 +458,9 @@ fn platform_known_apps() -> Vec<IndexedApp> {
     Vec::new()
 }
 
-fn discover_platform_apps() -> Result<AppIndexOutcome, AppIndexError> {
+fn index_platform_apps() -> Result<AppIndex, AppIndexError> {
     let roots = platform_start_menu_roots()?;
-    Ok(discover_from_roots(&roots))
+    Ok(index_start_menu_roots(&roots))
 }
 
 #[cfg(target_os = "windows")]
@@ -427,9 +475,7 @@ fn platform_start_menu_roots() -> Result<Vec<PathBuf>, AppIndexError> {
     }
 
     if roots.is_empty() {
-        Err(AppIndexError::Unavailable(
-            "APPDATA and ProgramData are not set".to_string(),
-        ))
+        Err(AppIndexError::MissingStartMenuEnvironment)
     } else {
         Ok(roots)
     }
@@ -437,12 +483,10 @@ fn platform_start_menu_roots() -> Result<Vec<PathBuf>, AppIndexError> {
 
 #[cfg(not(target_os = "windows"))]
 fn platform_start_menu_roots() -> Result<Vec<PathBuf>, AppIndexError> {
-    Err(AppIndexError::Unavailable(
-        "Windows Start Menu indexing is only available on Windows".to_string(),
-    ))
+    Err(AppIndexError::UnsupportedPlatform)
 }
 
-fn discover_from_roots(roots: &[PathBuf]) -> AppIndexOutcome {
+fn index_start_menu_roots(roots: &[PathBuf]) -> AppIndex {
     let mut entries = Vec::new();
 
     for root in roots {
@@ -457,7 +501,7 @@ fn discover_from_roots(roots: &[PathBuf]) -> AppIndexOutcome {
             .cmp(&right.entry.name.to_ascii_lowercase())
     });
 
-    AppIndexOutcome {
+    AppIndex {
         entries,
         roots_checked: roots.len(),
     }
@@ -489,7 +533,7 @@ fn scan_start_menu_root(root: &Path, entries: &mut Vec<IndexedApp>) {
             if file_type.is_dir() {
                 pending.push(path);
             } else if file_type.is_file() {
-                if let Some(app) = app_from_start_menu_file(&path) {
+                if let Some(app) = indexed_app_from_start_menu_file(&path) {
                     entries.push(app);
                 }
             }
@@ -497,14 +541,14 @@ fn scan_start_menu_root(root: &Path, entries: &mut Vec<IndexedApp>) {
     }
 }
 
-fn app_from_start_menu_file(path: &Path) -> Option<IndexedApp> {
-    let extension = normalized_extension(path)?;
-    if !matches!(extension.as_str(), "exe" | "lnk" | "appref-ms") {
+fn indexed_app_from_start_menu_file(path: &Path) -> Option<IndexedApp> {
+    let extension = start_menu_file_extension(path)?;
+    if !is_supported_start_menu_extension(&extension) {
         return None;
     }
 
     let name = app_name_from_path(path)?;
-    let (command, args) = launch_command_for_path(path, &extension);
+    let (command, args) = launch_command_for_path(path);
     let keywords = keywords_for_discovered_app(path, &extension);
     let entry = AppEntry {
         name,
@@ -516,7 +560,7 @@ fn app_from_start_menu_file(path: &Path) -> Option<IndexedApp> {
     Some(IndexedApp::discovered(entry, path.to_path_buf()))
 }
 
-fn normalized_extension(path: &Path) -> Option<String> {
+fn start_menu_file_extension(path: &Path) -> Option<String> {
     path.extension()
         .and_then(|extension| extension.to_str())
         .map(|extension| extension.to_ascii_lowercase())
@@ -531,13 +575,16 @@ fn app_name_from_path(path: &Path) -> Option<String> {
     }
 }
 
-fn launch_command_for_path(path: &Path, extension: &str) -> (String, Vec<String>) {
-    let path = path.to_string_lossy().into_owned();
-    if extension == "exe" {
-        (path, Vec::new())
-    } else {
-        ("explorer.exe".to_string(), vec![path])
-    }
+fn launch_command_for_path(path: &Path) -> (String, Vec<String>) {
+    (path.to_string_lossy().into_owned(), Vec::new())
+}
+
+fn is_supported_start_menu_extension(extension: &str) -> bool {
+    extension == "exe" || is_shell_opened_start_menu_extension(extension)
+}
+
+fn is_shell_opened_start_menu_extension(extension: &str) -> bool {
+    matches!(extension, "lnk" | "appref-ms")
 }
 
 fn keywords_for_discovered_app(path: &Path, extension: &str) -> Vec<String> {
@@ -593,29 +640,52 @@ mod tests {
         fs::write(tools.join("Helper.exe"), "").expect("test exe should be written");
         fs::write(tools.join("ignore.txt"), "").expect("test text file should be written");
 
-        let outcome = discover_from_roots(std::slice::from_ref(&root));
+        let app_index = index_start_menu_roots(std::slice::from_ref(&root));
         fs::remove_dir_all(&root).expect("test start menu directory should be removed");
 
-        let names = outcome
+        let names = app_index
             .entries
             .iter()
             .map(|app| app.entry.name.as_str())
             .collect::<Vec<_>>();
 
-        assert_eq!(outcome.roots_checked, 1);
+        assert_eq!(app_index.roots_checked, 1);
         assert!(names.contains(&"Example App"));
         assert!(names.contains(&"Helper"));
         assert_eq!(names.len(), 2);
     }
 
     #[test]
-    fn discovered_shortcut_launches_via_explorer() {
+    fn discovered_shortcut_opens_with_default_app() {
         let path = PathBuf::from("App.lnk");
-        let app = app_from_start_menu_file(&path).expect("lnk should be indexed");
+        let app = indexed_app_from_start_menu_file(&path).expect("lnk should be indexed");
+        let result = app_result(&app);
 
-        assert_eq!(app.entry.command, "explorer.exe");
-        assert_eq!(app.entry.args, vec![path.to_string_lossy().into_owned()]);
+        assert_eq!(app.entry.command, path.to_string_lossy().into_owned());
+        assert!(app.entry.args.is_empty());
         assert_eq!(app.entry.name, "App");
+        assert!(matches!(
+            result.action,
+            Action::OpenPath { ref path } if path == "App.lnk"
+        ));
+    }
+
+    #[test]
+    fn configured_shortcut_keeps_configured_launch_action() {
+        let app = IndexedApp::configured(AppEntry::new("Configured Shortcut", "App.lnk"));
+        let result = app_result(&app);
+
+        assert!(matches!(
+            result.action,
+            Action::LaunchApp { ref command, ref args }
+                if command == "App.lnk" && args.is_empty()
+        ));
+    }
+
+    #[test]
+    fn unsupported_start_menu_files_are_ignored() {
+        assert!(indexed_app_from_start_menu_file(Path::new("Readme.txt")).is_none());
+        assert!(indexed_app_from_start_menu_file(Path::new("NoExtension")).is_none());
     }
 
     #[test]
@@ -629,13 +699,13 @@ mod tests {
         fs::write(system_root.join("Same App.lnk"), "")
             .expect("test system shortcut should be written");
 
-        let outcome = discover_from_roots(&[user_root.clone(), system_root.clone()]);
+        let app_index = index_start_menu_roots(&[user_root.clone(), system_root.clone()]);
         fs::remove_dir_all(&user_root).expect("test user start menu should be removed");
         fs::remove_dir_all(&system_root).expect("test system start menu should be removed");
 
-        assert_eq!(outcome.entries.len(), 1);
+        assert_eq!(app_index.entries.len(), 1);
         assert!(matches!(
-            &outcome.entries[0].source,
+            &app_index.entries[0].source,
             AppSource::WindowsStartMenu { path } if path.starts_with(&user_root)
         ));
     }
@@ -646,7 +716,7 @@ mod tests {
             apps: vec![AppEntry::new("Notepad", "custom-notepad.exe")],
             ..Default::default()
         };
-        let indexed = AppIndexOutcome {
+        let indexed = AppIndex {
             entries: vec![IndexedApp::discovered(
                 AppEntry::new("Notepad", "notepad.exe"),
                 PathBuf::from("Notepad.lnk"),
@@ -672,7 +742,7 @@ mod tests {
     fn fallback_sample_is_used_when_indexing_is_unavailable_and_no_config_exists() {
         let provider = AppLauncherProvider::from_config_and_index_result(
             &Config::default(),
-            Err(AppIndexError::Unavailable("not windows".to_string())),
+            Err(AppIndexError::UnsupportedPlatform),
         );
 
         let results = provider
@@ -681,7 +751,7 @@ mod tests {
 
         assert_eq!(
             provider.index_status_summary(),
-            "app indexing unavailable: not windows; using fallback if no configured apps exist"
+            "app indexing unavailable: Windows Start Menu indexing is only available on Windows; using fallback if no configured apps exist"
         );
         assert!(results.iter().any(|result| {
             result.title == "Notepad"
@@ -700,7 +770,7 @@ mod tests {
         };
         let provider = AppLauncherProvider::from_config_and_index_result(
             &config,
-            Ok(AppIndexOutcome {
+            Ok(AppIndex {
                 entries: Vec::new(),
                 roots_checked: 2,
             }),
@@ -720,7 +790,7 @@ mod tests {
         notepad.keywords = vec!["built-in".to_string()];
         let provider = AppLauncherProvider::from_config_sources(
             &Config::default(),
-            Ok(AppIndexOutcome {
+            Ok(AppIndex {
                 entries: Vec::new(),
                 roots_checked: 1,
             }),
@@ -748,9 +818,9 @@ mod tests {
         };
         let provider = AppLauncherProvider::from_config_and_index_result(
             &config,
-            Ok(AppIndexOutcome {
+            Ok(AppIndex {
                 entries: vec![IndexedApp::discovered(
-                    AppEntry::new("Discovered App", "explorer.exe"),
+                    AppEntry::new("Discovered App", "Discovered App.lnk"),
                     PathBuf::from("Discovered App.lnk"),
                 )],
                 roots_checked: 2,

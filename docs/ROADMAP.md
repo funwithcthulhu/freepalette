@@ -1,6 +1,11 @@
 # Roadmap
 
-## v0.1: CLI Search + Built-In Provider Skeleton
+This roadmap separates shipped work from planned work. Items may move as the
+project settles.
+
+## Implemented
+
+### v0.1: CLI Search + Built-In Provider Skeleton
 
 - Rust workspace foundation.
 - CLI search command.
@@ -9,53 +14,54 @@
 - Fuzzy matching and simple ranking.
 - CI for fmt, clippy, and tests.
 
-## v0.2: Real App Indexing On Windows
+### v0.2: Windows App Indexing
 
-- Discover Start Menu applications on Windows.
-- Keep app indexing behind provider boundaries.
-- Preserve clear fallback behavior when indexing is unavailable.
-- Add CLI inspection for app indexing state.
-- Add explicit CLI execution through `freepalette run`.
+- Windows Start Menu scanning for `.lnk`, `.exe`, and `.appref-ms` entries.
+- Windows shell opening for shortcut-like Start Menu entries.
+- Fallback behavior when indexing is unavailable or empty.
+- CLI app index inspection.
+- Explicit CLI execution with `freepalette run`.
+- Shell execution guard with `--allow-shell`.
 
-Initial implementation is present. Future work can improve shortcut metadata,
-icons, app refresh behavior, and Windows-specific launch fidelity.
+### v0.3: Minimal UI
 
-## v0.3: Minimal GUI
+- egui-based palette window.
+- Search input.
+- Result list.
+- Keyboard selection.
+- Enter to execute selected non-shell actions.
+- Escape to close.
 
-- Choose the GUI shell.
-- Build a thin frontend over the Rust core.
-- Support search input, result list, keyboard navigation, and explicit action.
+### v0.4 Partial: Shared Daemon State
 
-Initial implementation is present with `eframe`/`egui`. Future work can refine
-window behavior, styling, launch feedback, and accessibility before adding a
-daemon or global hotkey.
+- Shared local state for config loading, provider setup, search, app index
+  reporting, refresh, and action execution policy.
+- CLI and UI route through that shared state.
 
-## v0.4: Global Hotkey + Daemon
+## Next
 
-- Add a shared daemon/service state layer.
-- Wire CLI and UI through the shared state.
-- Add a background daemon process.
-- Register global hotkey on Windows.
-- Provide a path for config reload and provider refresh.
+- Improve CLI and provider documentation as behavior changes.
+- Add a CLI command for app index refresh if a long-running process needs it.
+- Decide the smallest Windows global-hotkey path.
+- Keep shell execution blocked in UI until a confirmation flow exists.
 
-The shared local state layer is present. The remaining v0.4 work is the
-long-running process boundary and Windows global hotkey integration.
+## Later
 
-## v0.5: Clipboard History
-
-- Capture clipboard changes locally.
-- Add configurable retention.
-- Avoid logging clipboard contents by default.
-
-## v0.6: Subprocess Plugin Protocol
-
-- Define JSON-RPC/stdin-stdout protocol.
-- Add plugin manifests.
-- Add timeouts and structured errors.
-- Provide one example external plugin.
-
-## v0.7: macOS/Linux Parity Work
-
-- App indexing on macOS and Linux.
-- Hotkey integration on macOS and Linux.
+- Long-running daemon process.
+- Windows global hotkey registration.
+- Clipboard capture and local retention.
+- Better app launch metadata and icons.
+- macOS and Linux app indexing.
+- Subprocess plugin protocol.
 - Packaging notes for each platform.
+
+## Out Of Scope For Now
+
+- Accounts.
+- Cloud sync.
+- Telemetry.
+- Paid tier.
+- Plugin marketplace.
+- External plugin execution before a security model exists.
+- Mobile app.
+- AI assistant behavior.

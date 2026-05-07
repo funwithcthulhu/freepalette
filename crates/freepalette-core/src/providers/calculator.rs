@@ -4,6 +4,8 @@ use freepalette_plugin_api::{
 };
 use thiserror::Error;
 
+const CALCULATOR_SCORE_HINT: i64 = 1_000;
+
 pub struct CalculatorProvider;
 
 impl Provider for CalculatorProvider {
@@ -31,7 +33,7 @@ impl Provider for CalculatorProvider {
         )
         .with_subtitle("Calculator")
         .with_keywords(vec!["calc".to_string(), "calculator".to_string()])
-        .with_score_hint(1_000)])
+        .with_score_hint(CALCULATOR_SCORE_HINT)])
     }
 
     fn execute(&self, action: &Action) -> Result<ActionOutcome, PluginError> {
@@ -242,6 +244,8 @@ mod tests {
     #[test]
     fn detects_only_calc_prefix() {
         assert_eq!(expression_from_query("calc 2+2"), Some("2+2"));
+        assert_eq!(expression_from_query("calc"), None);
+        assert_eq!(expression_from_query("calc "), None);
         assert_eq!(expression_from_query("2+2"), None);
         assert_eq!(expression_from_query("=2+2"), None);
     }

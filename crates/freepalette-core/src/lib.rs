@@ -10,7 +10,8 @@ pub mod registry;
 pub use config::{AppEntry, Config, GeneralConfig, ProviderConfig};
 pub use error::CoreError;
 pub use freepalette_plugin_api::{
-    Action, ActionOutcome, Provider, ProviderId, Query, ResultKind, SearchContext, SearchResult,
+    Action, ActionOutcome, Provider, ProviderId, ResultKind, SearchContext, SearchQuery,
+    SearchResult,
 };
 pub use providers::{
     builtin_registry, AppIndexEntry, AppIndexEntrySource, AppIndexReport, AppIndexReportStatus,

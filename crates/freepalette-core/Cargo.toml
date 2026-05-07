@@ -18,5 +18,12 @@ tracing.workspace = true
 [dependencies.freepalette-plugin-api]
 path = "../freepalette-plugin-api"
 
+[target.'cfg(windows)'.dependencies.win-desktop-utils]
+version = "0.5.7"
+default-features = false
+features = [
+    "shell",
+]
+
 [lints]
 workspace = true
