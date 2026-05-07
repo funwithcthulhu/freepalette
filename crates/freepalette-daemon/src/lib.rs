@@ -185,6 +185,8 @@ fn ensure_action_allowed(
     action: &Action,
     policy: ActionExecutionPolicy,
 ) -> Result<(), DaemonError> {
+    // Search can return shell actions, but execution requires an explicit
+    // caller policy so display-only paths cannot run shell commands by mistake.
     if matches!(action, Action::RunShell { .. })
         && policy == ActionExecutionPolicy::BlockShellCommands
     {
@@ -307,6 +309,10 @@ mod tests {
             .expect_err("shell command should be blocked");
 
         assert!(matches!(error, DaemonError::ShellCommandBlocked));
+        assert_eq!(
+            error.to_string(),
+            "refusing to run shell command without explicit permission"
+        );
     }
 
     #[test]
