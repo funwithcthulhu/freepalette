@@ -1,6 +1,6 @@
 use std::{
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Output},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -35,6 +35,28 @@ fn write_config(name: &str, contents: &str) -> TempConfig {
     TempConfig { path }
 }
 
+struct TempMarker {
+    path: PathBuf,
+}
+
+impl TempMarker {
+    fn new(name: &str) -> Self {
+        Self {
+            path: temp_config_path(name),
+        }
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for TempMarker {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
 fn run_freepalette(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_freepalette"))
         .args(args)
@@ -44,6 +66,17 @@ fn run_freepalette(args: &[&str]) -> Output {
 
 fn output_text(output: &[u8]) -> String {
     String::from_utf8_lossy(output).into_owned()
+}
+
+#[cfg(target_os = "windows")]
+fn shell_write_marker_command(path: &Path) -> String {
+    format!("echo shell-ran > \"{}\"", path.display())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn shell_write_marker_command(path: &Path) -> String {
+    let quoted = path.display().to_string().replace('\'', "'\\''");
+    format!("printf shell-ran > '{quoted}'")
 }
 
 #[test]
@@ -89,6 +122,32 @@ fn search_shell_query_prints_action_without_running() {
 }
 
 #[test]
+fn search_shell_query_does_not_execute_command() {
+    let config = write_config(
+        "shell-search-no-execute",
+        r#"
+            [providers]
+            apps = false
+            calculator = false
+            shell = true
+            clipboard = false
+        "#,
+    );
+    let marker = TempMarker::new("shell-search-marker");
+    let config_arg = config.path_arg();
+    let query = format!("> {}", shell_write_marker_command(marker.path()));
+
+    let output = run_freepalette(&["--config", &config_arg, "search", &query]);
+
+    assert!(output.status.success());
+    assert!(
+        !marker.path().exists(),
+        "plain search must not execute shell actions"
+    );
+    assert!(output_text(&output.stdout).contains("action: run shell command:"));
+}
+
+#[test]
 fn run_shell_query_requires_allow_shell() {
     let config = write_config(
         "shell-run",
@@ -106,7 +165,55 @@ fn run_shell_query_requires_allow_shell() {
 
     assert!(!output.status.success());
     assert!(!output_text(&output.stdout).contains("Running:"));
-    assert!(output_text(&output.stderr).contains("--allow-shell"));
+    assert!(
+        output_text(&output.stderr).contains("refusing to run shell command without --allow-shell")
+    );
+}
+
+#[test]
+fn search_run_shell_query_requires_allow_shell() {
+    let config = write_config(
+        "shell-search-run",
+        r#"
+            [providers]
+            apps = false
+            calculator = false
+            shell = true
+            clipboard = false
+        "#,
+    );
+    let config_arg = config.path_arg();
+
+    let output = run_freepalette(&["--config", &config_arg, "search", "--run", "> echo hello"]);
+
+    assert!(!output.status.success());
+    assert!(output_text(&output.stdout).contains("Run: echo hello"));
+    assert!(
+        output_text(&output.stderr).contains("refusing to run shell command without --allow-shell")
+    );
+}
+
+#[test]
+fn run_calculator_query_is_not_blocked_by_shell_guard() {
+    let config = write_config(
+        "calculator-run",
+        r#"
+            [providers]
+            apps = false
+            calculator = true
+            shell = true
+            clipboard = false
+        "#,
+    );
+    let config_arg = config.path_arg();
+
+    let output = run_freepalette(&["--config", &config_arg, "run", "calc 2+2"]);
+
+    assert!(output.status.success());
+    let stdout = output_text(&output.stdout);
+    assert!(stdout.contains("Running: [calculator] 2+2 = 4"));
+    assert!(stdout.contains("calculator result ready to copy: 4"));
+    assert!(!output_text(&output.stderr).contains("--allow-shell"));
 }
 
 #[test]
