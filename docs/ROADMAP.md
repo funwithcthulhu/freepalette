@@ -32,11 +32,13 @@ project settles.
 - Enter to execute selected non-shell actions.
 - Escape to close.
 
-### v0.4 Partial: Shared Daemon State
+### v0.4: Shared Daemon State
 
 - Shared local state for config loading, provider setup, search, app index
   reporting, refresh, and action execution policy.
 - CLI and UI route through that shared state.
+- The daemon binary initializes local state and exits; it is not an IPC process
+  yet.
 
 ## Next
 

@@ -379,4 +379,83 @@ mod tests {
 
         assert_eq!(state.provider_ids(), vec!["shell"]);
     }
+
+    #[test]
+    fn refresh_app_index_preserves_searchable_app_provider_state() {
+        let mut configured = AppEntry::new("Refresh Target", "refresh-target.exe");
+        configured.keywords = vec!["refresh-target-keyword".to_string()];
+        let mut state = DaemonState::from_config(Config {
+            providers: provider_config(true, false, false, false),
+            apps: vec![configured],
+            ..Default::default()
+        })
+        .expect("daemon state should initialize");
+
+        let report = state
+            .refresh_app_index()
+            .expect("app index refresh should succeed")
+            .expect("app provider should have an index report");
+        assert!(report
+            .entries
+            .iter()
+            .any(|entry| entry.name == "Refresh Target"));
+
+        let results = state
+            .search("refresh-target-keyword", None)
+            .expect("search should use refreshed provider registry");
+        assert!(results
+            .iter()
+            .any(|ranked| ranked.result.title == "Refresh Target"));
+    }
+
+    #[test]
+    fn reload_config_updates_app_index_report_when_app_provider_changes() {
+        let path = temp_config_path("reload-apps");
+        fs::write(
+            &path,
+            r#"
+                [providers]
+                apps = false
+                calculator = false
+                shell = false
+                clipboard = false
+            "#,
+        )
+        .expect("test config should be writable");
+
+        let mut state = DaemonState::load_from_path(&path).expect("daemon state should load");
+        assert!(state.app_index_report().is_none());
+        assert!(state.provider_ids().is_empty());
+
+        fs::write(
+            &path,
+            r#"
+                [providers]
+                apps = true
+                calculator = false
+                shell = false
+                clipboard = false
+
+                [[apps]]
+                name = "Reloaded App"
+                command = "reloaded-app.exe"
+                keywords = ["reload-app-keyword"]
+            "#,
+        )
+        .expect("test config should be writable");
+
+        state
+            .reload_config()
+            .expect("daemon state should reload config");
+        fs::remove_file(&path).expect("test config should be removable");
+
+        assert_eq!(state.provider_ids(), vec!["apps"]);
+        let report = state
+            .app_index_report()
+            .expect("app provider should have an index report after reload");
+        assert!(report
+            .entries
+            .iter()
+            .any(|entry| entry.name == "Reloaded App"));
+    }
 }
