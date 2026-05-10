@@ -38,6 +38,43 @@ Costs:
 - protocol versioning must be handled carefully
 - cancellation, timeouts, and permissions need explicit design
 
+### Proposed Subprocess Shape
+
+This is a design direction, not implemented behavior.
+
+A plugin would ship a manifest next to an executable:
+
+```json
+{
+  "id": "example.notes",
+  "name": "Example Notes",
+  "protocol": "freepalette.subprocess.v1",
+  "command": "example-notes",
+  "permissions": ["search"]
+}
+```
+
+The host would start the process, send one JSON request per line, and expect one
+JSON response per line:
+
+```json
+{"id":1,"method":"search","params":{"query":"note","limit":10}}
+{"id":1,"result":[{"id":"new-note","title":"New note","kind":"plugin"}]}
+```
+
+Open questions before implementation:
+
+- timeout defaults for search and execution;
+- cancellation when the user keeps typing;
+- which actions a plugin may return;
+- whether plugins may request clipboard or shell permissions;
+- how errors are displayed without leaking local paths or private data;
+- how logs avoid query text or clipboard contents unless the user opts in.
+
+Initial permissions should be deny-by-default. A subprocess plugin should not
+receive clipboard history, shell execution, or filesystem access through the
+FreePalette protocol unless that permission is explicitly designed and granted.
+
 ## 3. WASM Plugins
 
 WASM may provide a portable sandboxed model later, but it requires careful host

@@ -26,6 +26,11 @@ the core model settles.
   describe current behavior and limitations more directly.
 - Added Windows shell opening for shortcut-like Start Menu entries instead of
   representing them as `explorer.exe` commands.
+- Added a clipboard security model, in-memory clipboard history state with
+  capture off by default, and daemon tests for retention and clearing.
+- Added global-hotkey config validation and documentation for the future Windows
+  message-loop path.
+- Made the UI refuse shell command execution with a UI-specific message.
 
 ## 0.3.0 - 2026-05-06
 

@@ -79,4 +79,43 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].title, "hello");
     }
+
+    #[test]
+    fn preview_uses_first_line_only() {
+        let provider =
+            ClipboardHistoryProvider::with_items(vec!["first line\nsecond line".to_string()]);
+        let results = provider
+            .search(&SearchContext::new("clipboard", 10))
+            .expect("clipboard search should succeed");
+
+        assert_eq!(results[0].title, "first line");
+        assert!(!results[0].title.contains("second line"));
+    }
+
+    #[test]
+    fn preview_truncates_long_items() {
+        let provider = ClipboardHistoryProvider::with_items(vec!["x".repeat(120)]);
+        let results = provider
+            .search(&SearchContext::new("clipboard", 10))
+            .expect("clipboard search should succeed");
+
+        assert_eq!(results[0].title.chars().count(), 80);
+        assert!(results[0].title.ends_with("..."));
+    }
+
+    #[test]
+    fn execute_message_does_not_echo_clipboard_contents() {
+        let provider = ClipboardHistoryProvider::empty();
+        let outcome = provider
+            .execute(&Action::CopyText {
+                text: "private-token-value".to_string(),
+            })
+            .expect("clipboard copy action should return stub outcome");
+
+        assert_eq!(
+            outcome.message,
+            "clipboard write is stubbed; selected 19 bytes"
+        );
+        assert!(!outcome.message.contains("private-token-value"));
+    }
 }

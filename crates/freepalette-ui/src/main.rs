@@ -157,8 +157,8 @@ fn describe_action(action: &Action) -> String {
         }
         Action::LaunchApp { command, args } => format!("launch {command} {}", args.join(" ")),
         Action::OpenPath { path } => format!("open {path}"),
-        Action::RunShell { command } => format!("shell {command}"),
-        Action::CopyText { text } => format!("copy {text}"),
+        Action::RunShell { .. } => "shell command blocked".to_string(),
+        Action::CopyText { .. } => "copy text".to_string(),
         Action::Noop { message } => message.clone(),
     }
 }

@@ -7,6 +7,19 @@ calculator = true
 shell = true
 clipboard = true
 
+[clipboard]
+capture = false
+max_entries = 50
+max_entry_bytes = 4096
+
+[hotkey]
+enabled = false
+key = "Space"
+ctrl = true
+alt = true
+shift = false
+meta = false
+
 [[apps]]
 name = "Notepad"
 command = "notepad.exe"

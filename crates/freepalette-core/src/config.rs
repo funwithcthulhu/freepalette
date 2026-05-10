@@ -13,6 +13,8 @@ use crate::error::CoreError;
 pub struct Config {
     pub general: GeneralConfig,
     pub providers: ProviderConfig,
+    pub clipboard: ClipboardConfig,
+    pub hotkey: HotkeyConfig,
     pub apps: Vec<AppEntry>,
 }
 
@@ -84,6 +86,48 @@ impl Default for ProviderConfig {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
+pub struct ClipboardConfig {
+    pub capture: bool,
+    pub max_entries: usize,
+    pub max_entry_bytes: usize,
+}
+
+impl Default for ClipboardConfig {
+    fn default() -> Self {
+        Self {
+            capture: false,
+            max_entries: 50,
+            max_entry_bytes: 4096,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct HotkeyConfig {
+    pub enabled: bool,
+    pub key: String,
+    pub ctrl: bool,
+    pub alt: bool,
+    pub shift: bool,
+    pub meta: bool,
+}
+
+impl Default for HotkeyConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            key: "Space".to_string(),
+            ctrl: true,
+            alt: true,
+            shift: false,
+            meta: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AppEntry {
     pub name: String,
     pub command: String,
@@ -149,6 +193,11 @@ mod tests {
         assert!(config.providers.calculator);
         assert!(config.providers.shell);
         assert!(config.providers.clipboard);
+        assert!(!config.clipboard.capture);
+        assert_eq!(config.clipboard.max_entries, 50);
+        assert_eq!(config.clipboard.max_entry_bytes, 4096);
+        assert!(!config.hotkey.enabled);
+        assert_eq!(config.hotkey.key, "Space");
         assert!(config.apps.is_empty());
     }
 
@@ -202,7 +251,40 @@ mod tests {
         assert!(config.providers.calculator);
         assert!(config.providers.shell);
         assert!(config.providers.clipboard);
+        assert!(!config.clipboard.capture);
+        assert_eq!(config.clipboard.max_entries, 50);
+        assert_eq!(config.hotkey.key, "Space");
         assert!(config.apps.is_empty());
+    }
+
+    #[test]
+    fn parses_clipboard_and_hotkey_config() {
+        let input = r#"
+            [clipboard]
+            capture = true
+            max_entries = 12
+            max_entry_bytes = 128
+
+            [hotkey]
+            enabled = true
+            key = "K"
+            ctrl = true
+            alt = false
+            shift = true
+            meta = false
+        "#;
+
+        let config: Config = toml::from_str(input).expect("clipboard config should parse");
+
+        assert!(config.clipboard.capture);
+        assert_eq!(config.clipboard.max_entries, 12);
+        assert_eq!(config.clipboard.max_entry_bytes, 128);
+        assert!(config.hotkey.enabled);
+        assert_eq!(config.hotkey.key, "K");
+        assert!(config.hotkey.ctrl);
+        assert!(!config.hotkey.alt);
+        assert!(config.hotkey.shift);
+        assert!(!config.hotkey.meta);
     }
 
     #[test]

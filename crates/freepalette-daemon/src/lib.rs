@@ -1,3 +1,5 @@
+mod hotkey;
+
 use std::path::{Path, PathBuf};
 
 use freepalette_core::{
@@ -9,10 +11,14 @@ use freepalette_core::{
 };
 use thiserror::Error;
 
+pub use hotkey::{HotkeyBinding, HotkeyError, HotkeyKey, HotkeyModifiers, HotkeyState};
+
 #[derive(Debug, Error)]
 pub enum DaemonError {
     #[error(transparent)]
     Core(#[from] CoreError),
+    #[error(transparent)]
+    Hotkey(#[from] HotkeyError),
     #[error("refusing to run shell command without explicit permission")]
     ShellCommandBlocked,
 }
@@ -40,6 +46,7 @@ pub struct DaemonState {
     registry: ProviderRegistry,
     app_index_report: Option<AppIndexReport>,
     clipboard_history: Vec<String>,
+    hotkey_state: HotkeyState,
 }
 
 impl DaemonState {
@@ -121,42 +128,134 @@ impl DaemonState {
         self.clipboard_history.len()
     }
 
+    /// Return the current global-hotkey setup state.
+    pub fn hotkey_state(&self) -> &HotkeyState {
+        &self.hotkey_state
+    }
+
+    /// Add one clipboard item to the in-memory history.
+    ///
+    /// This does not read the system clipboard. A future long-running daemon can
+    /// call this after a platform clipboard watcher is designed.
+    pub fn record_clipboard_text(
+        &mut self,
+        text: impl Into<String>,
+    ) -> Result<ClipboardRecordOutcome, DaemonError> {
+        if !self.config.providers.clipboard {
+            return Ok(ClipboardRecordOutcome::ProviderDisabled);
+        }
+        if !self.config.clipboard.capture {
+            return Ok(ClipboardRecordOutcome::CaptureDisabled);
+        }
+        if self.config.clipboard.max_entries == 0 {
+            return Ok(ClipboardRecordOutcome::RetentionDisabled);
+        }
+
+        let text = text.into();
+        if text.trim().is_empty() {
+            return Ok(ClipboardRecordOutcome::IgnoredEmpty);
+        }
+
+        let byte_count = text.len();
+        if byte_count > self.config.clipboard.max_entry_bytes {
+            return Ok(ClipboardRecordOutcome::IgnoredTooLarge {
+                byte_count,
+                max_bytes: self.config.clipboard.max_entry_bytes,
+            });
+        }
+
+        self.clipboard_history
+            .retain(|existing| existing.as_str() != text.as_str());
+        self.clipboard_history.insert(0, text);
+        self.enforce_clipboard_limits();
+        self.rebuild_registry()?;
+
+        Ok(ClipboardRecordOutcome::Stored)
+    }
+
+    /// Clear all in-memory clipboard history and return the number of entries removed.
+    pub fn clear_clipboard_history(&mut self) -> Result<usize, DaemonError> {
+        let removed = self.clipboard_history.len();
+        self.clipboard_history.clear();
+        self.rebuild_registry()?;
+        Ok(removed)
+    }
+
     fn from_loaded_config(
         config_source: ConfigSource,
         config: Config,
     ) -> Result<Self, DaemonError> {
-        let runtime = build_runtime(&config)?;
+        let runtime = build_runtime(&config, &[])?;
         Ok(Self {
             config_source,
             config,
             registry: runtime.registry,
             app_index_report: runtime.app_index_report,
             clipboard_history: Vec::new(),
+            hotkey_state: runtime.hotkey_state,
         })
     }
 
     fn replace_config(&mut self, config: Config) -> Result<(), DaemonError> {
-        let runtime = build_runtime(&config)?;
+        let mut clipboard_history = self.clipboard_history.clone();
+        apply_clipboard_config(&mut clipboard_history, &config);
+        let runtime = build_runtime(&config, &clipboard_history)?;
         self.config = config;
+        self.clipboard_history = clipboard_history;
         self.registry = runtime.registry;
         self.app_index_report = runtime.app_index_report;
+        self.hotkey_state = runtime.hotkey_state;
         Ok(())
     }
 
     fn rebuild_registry(&mut self) -> Result<(), DaemonError> {
-        let runtime = build_runtime(&self.config)?;
+        let runtime = build_runtime(&self.config, &self.clipboard_history)?;
         self.registry = runtime.registry;
         self.app_index_report = runtime.app_index_report;
+        self.hotkey_state = runtime.hotkey_state;
         Ok(())
+    }
+
+    fn enforce_clipboard_limits(&mut self) {
+        if self.clipboard_history.len() > self.config.clipboard.max_entries {
+            self.clipboard_history
+                .truncate(self.config.clipboard.max_entries);
+        }
     }
 }
 
 struct DaemonRuntime {
     registry: ProviderRegistry,
     app_index_report: Option<AppIndexReport>,
+    hotkey_state: HotkeyState,
 }
 
-fn build_runtime(config: &Config) -> Result<DaemonRuntime, CoreError> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ClipboardRecordOutcome {
+    Stored,
+    CaptureDisabled,
+    ProviderDisabled,
+    RetentionDisabled,
+    IgnoredEmpty,
+    IgnoredTooLarge { byte_count: usize, max_bytes: usize },
+}
+
+fn apply_clipboard_config(clipboard_history: &mut Vec<String>, config: &Config) {
+    if !config.providers.clipboard || !config.clipboard.capture {
+        clipboard_history.clear();
+        return;
+    }
+
+    clipboard_history.retain(|entry| entry.len() <= config.clipboard.max_entry_bytes);
+    if clipboard_history.len() > config.clipboard.max_entries {
+        clipboard_history.truncate(config.clipboard.max_entries);
+    }
+}
+
+fn build_runtime(
+    config: &Config,
+    clipboard_history: &[String],
+) -> Result<DaemonRuntime, DaemonError> {
     let mut registry = ProviderRegistry::new();
     let mut app_index_report = None;
 
@@ -172,12 +271,15 @@ fn build_runtime(config: &Config) -> Result<DaemonRuntime, CoreError> {
         registry.register(ShellCommandProvider)?;
     }
     if config.providers.clipboard {
-        registry.register(ClipboardHistoryProvider::empty())?;
+        registry.register(ClipboardHistoryProvider::with_items(
+            clipboard_history.to_vec(),
+        ))?;
     }
 
     Ok(DaemonRuntime {
         registry,
         app_index_report,
+        hotkey_state: HotkeyState::from_config(&config.hotkey)?,
     })
 }
 
@@ -203,7 +305,9 @@ mod tests {
         time::{SystemTime, UNIX_EPOCH},
     };
 
-    use freepalette_core::{AppEntry, GeneralConfig, ProviderConfig};
+    use freepalette_core::{
+        AppEntry, ClipboardConfig, GeneralConfig, HotkeyConfig, ProviderConfig,
+    };
 
     use super::*;
 
@@ -239,6 +343,7 @@ mod tests {
             general: GeneralConfig { max_results: 1 },
             providers: provider_config(true, false, false, false),
             apps: vec![first, second],
+            ..Default::default()
         })
         .expect("daemon state should initialize");
 
@@ -259,6 +364,7 @@ mod tests {
             general: GeneralConfig { max_results: 1 },
             providers: provider_config(true, false, false, false),
             apps: vec![first, second],
+            ..Default::default()
         })
         .expect("daemon state should initialize");
 
@@ -364,6 +470,199 @@ mod tests {
             .expect("app index refresh should rebuild registry");
 
         assert!(report.is_none());
+    }
+
+    #[test]
+    fn clipboard_provider_can_be_disabled() {
+        let state = DaemonState::from_config(Config {
+            providers: provider_config(false, true, false, false),
+            ..Default::default()
+        })
+        .expect("daemon state should initialize");
+
+        assert_eq!(state.provider_ids(), vec!["calculator"]);
+        assert_eq!(state.clipboard_history_len(), 0);
+    }
+
+    #[test]
+    fn default_config_does_not_record_clipboard_history() {
+        let mut state = DaemonState::from_config(Config::default())
+            .expect("default daemon state should initialize");
+
+        let outcome = state
+            .record_clipboard_text("private-token-value")
+            .expect("clipboard record should return a policy outcome");
+
+        assert_eq!(outcome, ClipboardRecordOutcome::CaptureDisabled);
+        assert_eq!(state.clipboard_history_len(), 0);
+    }
+
+    #[test]
+    fn clipboard_provider_disabled_prevents_recording() {
+        let mut state = DaemonState::from_config(Config {
+            providers: provider_config(false, false, false, false),
+            clipboard: ClipboardConfig {
+                capture: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .expect("daemon state should initialize");
+
+        let outcome = state
+            .record_clipboard_text("private-token-value")
+            .expect("clipboard record should return a policy outcome");
+
+        assert_eq!(outcome, ClipboardRecordOutcome::ProviderDisabled);
+        assert_eq!(state.clipboard_history_len(), 0);
+    }
+
+    #[test]
+    fn clipboard_history_respects_retention_limit() {
+        let mut state = DaemonState::from_config(Config {
+            providers: provider_config(false, false, false, true),
+            clipboard: ClipboardConfig {
+                capture: true,
+                max_entries: 2,
+                max_entry_bytes: 128,
+            },
+            ..Default::default()
+        })
+        .expect("daemon state should initialize");
+
+        assert_eq!(
+            state
+                .record_clipboard_text("first")
+                .expect("clipboard record should succeed"),
+            ClipboardRecordOutcome::Stored
+        );
+        assert_eq!(
+            state
+                .record_clipboard_text("second")
+                .expect("clipboard record should succeed"),
+            ClipboardRecordOutcome::Stored
+        );
+        assert_eq!(
+            state
+                .record_clipboard_text("third")
+                .expect("clipboard record should succeed"),
+            ClipboardRecordOutcome::Stored
+        );
+
+        assert_eq!(state.clipboard_history_len(), 2);
+    }
+
+    #[test]
+    fn clipboard_history_ignores_empty_and_oversized_entries() {
+        let mut state = DaemonState::from_config(Config {
+            providers: provider_config(false, false, false, true),
+            clipboard: ClipboardConfig {
+                capture: true,
+                max_entries: 10,
+                max_entry_bytes: 5,
+            },
+            ..Default::default()
+        })
+        .expect("daemon state should initialize");
+
+        assert_eq!(
+            state
+                .record_clipboard_text("   ")
+                .expect("empty clipboard record should be ignored"),
+            ClipboardRecordOutcome::IgnoredEmpty
+        );
+        assert_eq!(
+            state
+                .record_clipboard_text("secret-token")
+                .expect("oversized clipboard record should be ignored"),
+            ClipboardRecordOutcome::IgnoredTooLarge {
+                byte_count: 12,
+                max_bytes: 5,
+            }
+        );
+        assert_eq!(state.clipboard_history_len(), 0);
+    }
+
+    #[test]
+    fn clearing_clipboard_history_removes_stored_entries() {
+        let mut state = DaemonState::from_config(Config {
+            providers: provider_config(false, false, false, true),
+            clipboard: ClipboardConfig {
+                capture: true,
+                max_entries: 10,
+                max_entry_bytes: 128,
+            },
+            ..Default::default()
+        })
+        .expect("daemon state should initialize");
+        state
+            .record_clipboard_text("private-token-value")
+            .expect("clipboard record should succeed");
+
+        let removed = state
+            .clear_clipboard_history()
+            .expect("clipboard clear should rebuild provider registry");
+
+        assert_eq!(removed, 1);
+        assert_eq!(state.clipboard_history_len(), 0);
+        assert!(state
+            .search("private-token-value", None)
+            .expect("search should succeed")
+            .is_empty());
+    }
+
+    #[test]
+    fn clipboard_search_results_do_not_create_shell_actions() {
+        let mut state = DaemonState::from_config(Config {
+            providers: provider_config(false, false, false, true),
+            clipboard: ClipboardConfig {
+                capture: true,
+                max_entries: 10,
+                max_entry_bytes: 128,
+            },
+            ..Default::default()
+        })
+        .expect("daemon state should initialize");
+        state
+            .record_clipboard_text("> echo should-not-run")
+            .expect("clipboard record should succeed");
+
+        let results = state
+            .search("echo", None)
+            .expect("clipboard search should succeed");
+
+        assert!(!results.is_empty());
+        assert!(results
+            .iter()
+            .all(|ranked| !matches!(ranked.result.action, Action::RunShell { .. })));
+    }
+
+    #[test]
+    fn daemon_reports_hotkey_state_from_config() {
+        let state = DaemonState::from_config(Config {
+            hotkey: HotkeyConfig {
+                enabled: true,
+                key: "Space".to_string(),
+                ctrl: true,
+                alt: true,
+                shift: false,
+                meta: false,
+            },
+            ..Default::default()
+        })
+        .expect("daemon state should initialize with hotkey config");
+
+        if cfg!(target_os = "windows") {
+            assert!(matches!(
+                state.hotkey_state(),
+                HotkeyState::ReadyForWindowsMessageLoop(_)
+            ));
+        } else {
+            assert!(matches!(
+                state.hotkey_state(),
+                HotkeyState::UnsupportedPlatform { .. }
+            ));
+        }
     }
 
     #[test]
