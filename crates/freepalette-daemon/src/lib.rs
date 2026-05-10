@@ -316,6 +316,31 @@ mod tests {
     }
 
     #[test]
+    fn default_config_registers_shell_provider_but_keeps_execution_blocked() {
+        let state = DaemonState::from_config(Config::default())
+            .expect("default daemon state should initialize");
+
+        assert!(state.provider_ids().iter().any(|id| id == "shell"));
+
+        let results = state
+            .search("> echo hello", None)
+            .expect("shell search should succeed with default config");
+        let shell_result = results
+            .iter()
+            .find(|ranked| matches!(ranked.result.action, Action::RunShell { .. }))
+            .expect("default config should expose shell search results");
+
+        let error = state
+            .execute_result(
+                &shell_result.result,
+                ActionExecutionPolicy::BlockShellCommands,
+            )
+            .expect_err("shell execution should still require explicit permission");
+
+        assert!(matches!(error, DaemonError::ShellCommandBlocked));
+    }
+
+    #[test]
     fn app_index_report_is_available_when_app_provider_is_enabled() {
         let state = DaemonState::from_config(Config {
             providers: provider_config(true, false, false, false),
