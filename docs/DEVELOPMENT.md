@@ -8,7 +8,7 @@ through tests or CLI output.
 ```powershell
 git checkout main
 git pull --ff-only
-git checkout -b codex/short-description
+git checkout -b temp/short-description
 ```
 
 ## Checks

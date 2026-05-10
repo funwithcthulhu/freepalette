@@ -25,11 +25,14 @@ daemon/plugin-facing crates.
 - TOML config loading from an explicit path or the platform default location.
 - Fuzzy search plus a small ranking model.
 - A minimal desktop UI in `freepalette-ui`.
-- Stub clipboard provider.
+- Clipboard provider backed by explicit in-memory daemon state. System clipboard
+  capture and persistence are not implemented.
+- Hotkey config validation in daemon state. Live global hotkey registration is
+  not implemented.
 
 ## What Does Not Work Yet
 
-- Global hotkey registration.
+- Live global hotkey registration.
 - A long-running IPC daemon.
 - Clipboard capture or persistence.
 - External plugin execution.
@@ -80,6 +83,31 @@ See [examples/config/freepalette.toml](examples/config/freepalette.toml).
 
 The CLI accepts `--config <path>` for commands that load providers.
 
+Clipboard capture is off by default:
+
+```toml
+[clipboard]
+capture = false
+max_entries = 50
+max_entry_bytes = 4096
+```
+
+The daemon has in-memory clipboard-history state for future capture work, but
+it does not watch the system clipboard or write clipboard history to disk.
+
+The hotkey config is also disabled by default:
+
+```toml
+[hotkey]
+enabled = false
+key = "Space"
+ctrl = true
+alt = true
+```
+
+The daemon validates this shape, but it does not register a live global hotkey
+yet.
+
 ## Windows App Indexing
 
 The app provider scans these Start Menu locations when they exist:
@@ -100,8 +128,8 @@ a clearly labeled Notepad fallback only when there are no configured apps.
   and action dispatch.
 - `freepalette-cli`: command-line search, inspection, and explicit run support.
 - `freepalette-daemon`: shared local state for config loading, provider setup,
-  search, app index reports, refresh, and action execution policy. It is not an
-  IPC daemon yet.
+  search, app index reports, refresh, in-memory clipboard history, hotkey
+  config state, and action execution policy. It is not an IPC daemon yet.
 - `freepalette-plugin-api`: public provider/action data types used by built-in
   providers and future plugin protocol work.
 - `freepalette-ui`: minimal egui palette. It is early and has no hotkey, tray,
@@ -123,7 +151,9 @@ not implemented.
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [Clipboard security](docs/CLIPBOARD_SECURITY.md)
 - [Development](docs/DEVELOPMENT.md)
+- [Hotkeys](docs/HOTKEYS.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Non-goals](docs/NON_GOALS.md)
 - [Plugin model](docs/PLUGIN_MODEL.md)

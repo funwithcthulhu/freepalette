@@ -1,4 +1,4 @@
-use freepalette_core::{Config, RankedResult};
+use freepalette_core::{Action, Config, RankedResult};
 use freepalette_daemon::{ActionExecutionPolicy, DaemonError, DaemonState};
 use thiserror::Error;
 
@@ -80,6 +80,14 @@ impl PaletteState {
             self.selected = None;
             return;
         };
+
+        if matches!(ranked.result.action, Action::RunShell { .. }) {
+            self.status = PaletteStatus::Error(
+                "Shell commands cannot run from the UI yet; use the CLI with --allow-shell"
+                    .to_string(),
+            );
+            return;
+        }
 
         match self
             .daemon
@@ -164,6 +172,7 @@ mod tests {
                 clipboard: false,
             },
             apps: vec![first, second],
+            ..Default::default()
         })
         .expect("test app provider should register")
     }
@@ -234,7 +243,8 @@ mod tests {
         assert_eq!(
             state.status(),
             &PaletteStatus::Error(
-                "refusing to run shell command without explicit permission".to_string()
+                "Shell commands cannot run from the UI yet; use the CLI with --allow-shell"
+                    .to_string()
             )
         );
     }

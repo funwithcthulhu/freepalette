@@ -19,7 +19,8 @@ Owns the launcher domain code:
 - action dispatch through providers.
 
 Built-in providers currently cover apps, calculator queries, shell command
-actions, and a clipboard stub.
+actions, and clipboard history results backed by explicit in-memory daemon
+state.
 
 ### freepalette-cli
 
@@ -44,7 +45,8 @@ holds shared local state used by the CLI and UI:
 - search;
 - app index refresh;
 - action execution policy;
-- clipboard-history placeholder state.
+- in-memory clipboard-history state;
+- global-hotkey config state.
 
 The binary initializes this state and exits. It does not register hotkeys, watch
 config files, expose IPC, or capture clipboard changes.
@@ -98,6 +100,10 @@ The daemon state owns the loaded config and rebuilds provider state from it.
 Tests use explicit temporary config files so they do not depend on a developer's
 local machine.
 
+Clipboard capture and global hotkeys are disabled by default. Their config
+sections are parsed now so future daemon work has a tested place to attach
+platform behavior.
+
 ## Ranking
 
 Ranking is simple:
@@ -130,8 +136,11 @@ are no configured apps.
 ## Current Limits
 
 - App indexing is Windows-first.
-- Clipboard history is a stub.
+- Clipboard history is in-memory only and must be populated explicitly by
+  daemon code. System clipboard capture and persistence must follow
+  [Clipboard Security Model](CLIPBOARD_SECURITY.md).
 - The daemon crate is not an IPC process.
-- Global hotkeys are not implemented.
+- Global hotkey config validation exists, but live hotkey registration is not
+  implemented. See [Hotkeys](HOTKEYS.md).
 - External plugin execution is not implemented.
 - The UI is usable for smoke testing but is not a finished launcher.

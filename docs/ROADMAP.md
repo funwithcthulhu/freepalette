@@ -40,18 +40,29 @@ project settles.
 - The daemon binary initializes local state and exits; it is not an IPC process
   yet.
 
+### Unreleased: Clipboard And Hotkey Groundwork
+
+- Clipboard security model.
+- In-memory clipboard history state with capture off by default.
+- Clipboard retention limits and clear behavior in daemon state.
+- Hotkey config validation and platform status reporting.
+- UI shell execution refusal with no shell confirmation flow yet.
+
 ## Next
 
 - Improve CLI and provider documentation as behavior changes.
+- Wire a Windows daemon message loop before live global-hotkey registration.
+- Add explicit user controls before any real system clipboard capture.
 - Add a CLI command for app index refresh if a long-running process needs it.
-- Decide the smallest Windows global-hotkey path.
 - Keep shell execution blocked in UI until a confirmation flow exists.
 
 ## Later
 
 - Long-running daemon process.
 - Windows global hotkey registration.
-- Clipboard capture and local retention.
+- System clipboard capture.
+- Clipboard persistence after storage location and deletion behavior are
+  documented.
 - Better app launch metadata and icons.
 - macOS and Linux app indexing.
 - Subprocess plugin protocol.

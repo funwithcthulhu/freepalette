@@ -26,6 +26,16 @@ server. Future IPC, global hotkey, and plugin execution work should treat
 message boundaries and permissions as part of the security model, not as UI
 details.
 
+Clipboard capture and persistence are not implemented. The daemon has an
+explicit in-memory clipboard buffer for future capture work, and capture is off
+by default. The clipboard security model is documented in
+[docs/CLIPBOARD_SECURITY.md](docs/CLIPBOARD_SECURITY.md) and must be updated
+before persistent clipboard history is added.
+
+Global hotkey config validation exists, but live OS hotkey registration is not
+implemented. Future hotkey code should register only one configured launcher
+binding and must not log arbitrary key presses.
+
 ## Telemetry And Secrets
 
 freepalette must not collect telemetry. It must not collect secrets. Logs should

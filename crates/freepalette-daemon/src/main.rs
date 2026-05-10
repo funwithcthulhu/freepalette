@@ -8,10 +8,12 @@ fn main() -> anyhow::Result<()> {
     tracing::info!(
         providers = ?daemon.provider_ids(),
         clipboard_items = daemon.clipboard_history_len(),
+        hotkey = %daemon.hotkey_state().summary(),
         "daemon initialized"
     );
     println!("freepalette-daemon initialized");
-    println!("global hotkey, IPC, and clipboard capture are intentionally not implemented yet");
+    println!("{}", daemon.hotkey_state().summary());
+    println!("IPC and system clipboard capture are intentionally not implemented yet");
 
     Ok(())
 }

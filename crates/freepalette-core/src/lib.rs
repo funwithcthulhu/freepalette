@@ -7,7 +7,7 @@ pub mod providers;
 pub mod ranking;
 pub mod registry;
 
-pub use config::{AppEntry, Config, GeneralConfig, ProviderConfig};
+pub use config::{AppEntry, ClipboardConfig, Config, GeneralConfig, HotkeyConfig, ProviderConfig};
 pub use error::CoreError;
 pub use freepalette_plugin_api::{
     Action, ActionOutcome, Provider, ProviderId, ResultKind, SearchContext, SearchQuery,
