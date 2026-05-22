@@ -47,12 +47,13 @@ holds shared local state used by the CLI and UI:
 - action execution policy;
 - in-memory clipboard-history state;
 - global-hotkey config state;
-- Windows foreground hotkey registration.
+- Windows foreground hotkey diagnostics.
 
 The default binary command initializes this state and exits. `freepalette-daemon
 run` can register the configured hotkey on Windows and wait in the foreground.
-The crate does not expose IPC, watch config files, capture clipboard changes, or
-open/focus the UI from a hotkey yet.
+That diagnostic path logs configured hotkey presses. The crate does not expose
+IPC, watch config files, capture clipboard changes, or open/focus the UI from a
+separate daemon process yet.
 
 ### freepalette-ui
 
@@ -60,8 +61,12 @@ The UI crate contains a minimal egui palette. It can search, move selection, and
 execute selected non-shell actions through `freepalette-daemon`. Shell actions
 are shown but blocked because there is no confirmation UI yet.
 
-There is no tray integration, IPC daemon connection, or polished desktop shell.
-The UI is not opened or focused by the daemon hotkey yet.
+On Windows, the UI process can register the configured hotkey itself. Pressing
+that hotkey shows and focuses the same local palette process. Escape hides the
+window when the hotkey bridge is active; otherwise Escape exits the UI.
+
+There is no tray integration, autostart setup, IPC daemon connection, or polished
+desktop shell.
 
 ### freepalette-plugin-api
 
@@ -104,8 +109,9 @@ Tests use explicit temporary config files so they do not depend on a developer's
 local machine.
 
 Clipboard capture and global hotkeys are disabled by default. The hotkey config
-can be used by the Windows foreground daemon loop. Clipboard config is parsed
-now so future capture work has a tested place to attach platform behavior.
+can be used by the Windows UI hotkey bridge and by the foreground daemon
+diagnostic loop. Clipboard config is parsed now so future capture work has a
+tested place to attach platform behavior.
 
 ## Ranking
 
@@ -143,7 +149,8 @@ are no configured apps.
   daemon code. System clipboard capture and persistence must follow
   [Clipboard Security Model](CLIPBOARD_SECURITY.md).
 - The daemon crate is not an IPC process.
-- Global hotkey registration exists only for the Windows foreground daemon loop.
-  The hotkey does not open or focus the UI yet. See [Hotkeys](HOTKEYS.md).
+- Global hotkey registration exists only on Windows. The UI-owned path can show
+  and focus the local palette process. The daemon path is diagnostic only. See
+  [Hotkeys](HOTKEYS.md).
 - External plugin execution is not implemented.
 - The UI is usable for smoke testing but is not a finished launcher.

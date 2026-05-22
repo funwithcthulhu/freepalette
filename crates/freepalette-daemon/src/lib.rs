@@ -11,6 +11,8 @@ use freepalette_core::{
 };
 use thiserror::Error;
 
+#[cfg(windows)]
+pub use hotkey::windows_global_hotkey;
 pub use hotkey::{HotkeyBinding, HotkeyError, HotkeyKey, HotkeyModifiers, HotkeyState};
 pub use hotkey::{HotkeyLoopError, HotkeyLoopStatus};
 

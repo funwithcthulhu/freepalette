@@ -24,5 +24,8 @@ path = "../freepalette-core"
 [dependencies.freepalette-daemon]
 path = "../freepalette-daemon"
 
+[target.'cfg(windows)'.dependencies.global-hotkey]
+version = "0.8.0"
+
 [lints]
 workspace = true
