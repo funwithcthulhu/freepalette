@@ -265,19 +265,24 @@ mod tests {
         alpha_second.id = "b".to_string();
         let mut alpha_first = result("Alpha", ResultKind::System, 0);
         alpha_first.id = "a".to_string();
+        let beta = result("Beta", ResultKind::System, 0);
 
         let ranked = rank_results(
             "",
-            vec![
-                result("Beta", ResultKind::System, 0),
-                alpha_second,
-                alpha_first,
-            ],
+            vec![beta.clone(), alpha_second.clone(), alpha_first.clone()],
         );
 
         assert_eq!(ranked[0].result.title, "Alpha");
         assert_eq!(ranked[0].result.id, "a");
         assert_eq!(ranked[1].result.id, "b");
         assert_eq!(ranked[2].result.title, "Beta");
+
+        let reversed_input = rank_results("", vec![alpha_first, alpha_second, beta]);
+        let ordered_ids = reversed_input
+            .iter()
+            .map(|ranked| ranked.result.id.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(ordered_ids, vec!["a", "b", "beta"]);
     }
 }
