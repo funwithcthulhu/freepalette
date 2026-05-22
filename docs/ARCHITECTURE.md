@@ -46,10 +46,13 @@ holds shared local state used by the CLI and UI:
 - app index refresh;
 - action execution policy;
 - in-memory clipboard-history state;
-- global-hotkey config state.
+- global-hotkey config state;
+- Windows foreground hotkey registration.
 
-The binary initializes this state and exits. It does not register hotkeys, watch
-config files, expose IPC, or capture clipboard changes.
+The default binary command initializes this state and exits. `freepalette-daemon
+run` can register the configured hotkey on Windows and wait in the foreground.
+The crate does not expose IPC, watch config files, capture clipboard changes, or
+open/focus the UI from a hotkey yet.
 
 ### freepalette-ui
 
@@ -57,8 +60,8 @@ The UI crate contains a minimal egui palette. It can search, move selection, and
 execute selected non-shell actions through `freepalette-daemon`. Shell actions
 are shown but blocked because there is no confirmation UI yet.
 
-There is no global hotkey, tray integration, IPC daemon connection, or polished
-desktop shell.
+There is no tray integration, IPC daemon connection, or polished desktop shell.
+The UI is not opened or focused by the daemon hotkey yet.
 
 ### freepalette-plugin-api
 
@@ -100,9 +103,9 @@ The daemon state owns the loaded config and rebuilds provider state from it.
 Tests use explicit temporary config files so they do not depend on a developer's
 local machine.
 
-Clipboard capture and global hotkeys are disabled by default. Their config
-sections are parsed now so future daemon work has a tested place to attach
-platform behavior.
+Clipboard capture and global hotkeys are disabled by default. The hotkey config
+can be used by the Windows foreground daemon loop. Clipboard config is parsed
+now so future capture work has a tested place to attach platform behavior.
 
 ## Ranking
 
@@ -140,7 +143,7 @@ are no configured apps.
   daemon code. System clipboard capture and persistence must follow
   [Clipboard Security Model](CLIPBOARD_SECURITY.md).
 - The daemon crate is not an IPC process.
-- Global hotkey config validation exists, but live hotkey registration is not
-  implemented. See [Hotkeys](HOTKEYS.md).
+- Global hotkey registration exists only for the Windows foreground daemon loop.
+  The hotkey does not open or focus the UI yet. See [Hotkeys](HOTKEYS.md).
 - External plugin execution is not implemented.
 - The UI is usable for smoke testing but is not a finished launcher.

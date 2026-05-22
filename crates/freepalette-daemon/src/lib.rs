@@ -12,6 +12,7 @@ use freepalette_core::{
 use thiserror::Error;
 
 pub use hotkey::{HotkeyBinding, HotkeyError, HotkeyKey, HotkeyModifiers, HotkeyState};
+pub use hotkey::{HotkeyLoopError, HotkeyLoopStatus};
 
 #[derive(Debug, Error)]
 pub enum DaemonError {
@@ -19,6 +20,8 @@ pub enum DaemonError {
     Core(#[from] CoreError),
     #[error(transparent)]
     Hotkey(#[from] HotkeyError),
+    #[error(transparent)]
+    HotkeyLoop(#[from] HotkeyLoopError),
     #[error("refusing to run shell command without explicit permission")]
     ShellCommandBlocked,
 }
@@ -131,6 +134,15 @@ impl DaemonState {
     /// Return the current global-hotkey setup state.
     pub fn hotkey_state(&self) -> &HotkeyState {
         &self.hotkey_state
+    }
+
+    /// Run the foreground global-hotkey loop.
+    ///
+    /// On Windows, this blocks while the configured hotkey is registered. On
+    /// unsupported platforms or when the hotkey is disabled, it returns a
+    /// status immediately.
+    pub fn run_hotkey_loop(&self) -> Result<HotkeyLoopStatus, DaemonError> {
+        Ok(hotkey::run_hotkey_loop(&self.hotkey_state)?)
     }
 
     /// Add one clipboard item to the in-memory history.

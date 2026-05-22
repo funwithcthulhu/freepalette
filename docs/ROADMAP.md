@@ -46,12 +46,13 @@ project settles.
 - In-memory clipboard history state with capture off by default.
 - Clipboard retention limits and clear behavior in daemon state.
 - Hotkey config validation and platform status reporting.
+- Foreground Windows hotkey registration through `freepalette-daemon run`.
 - UI shell execution refusal with no shell confirmation flow yet.
 
 ## Next
 
 - Improve CLI and provider documentation as behavior changes.
-- Wire a Windows daemon message loop before live global-hotkey registration.
+- Connect the Windows hotkey press to opening or focusing the local palette.
 - Add explicit user controls before any real system clipboard capture.
 - Add a CLI command for app index refresh if a long-running process needs it.
 - Keep shell execution blocked in UI until a confirmation flow exists.
@@ -59,7 +60,7 @@ project settles.
 ## Later
 
 - Long-running daemon process.
-- Windows global hotkey registration.
+- Tray or IPC integration for the daemon.
 - System clipboard capture.
 - Clipboard persistence after storage location and deletion behavior are
   documented.
