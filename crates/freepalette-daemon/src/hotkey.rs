@@ -77,13 +77,20 @@ impl HotkeyState {
             Self::Disabled => "global hotkey disabled".to_string(),
             Self::ReadyForWindowsMessageLoop(binding) => {
                 format!(
-                    "global hotkey {} can be registered by the Windows daemon loop",
+                    "global hotkey {} can be registered on Windows",
                     binding.display()
                 )
             }
             Self::UnsupportedPlatform { platform } => {
                 format!("global hotkey unsupported on {platform}")
             }
+        }
+    }
+
+    pub fn windows_binding(&self) -> Option<&HotkeyBinding> {
+        match self {
+            Self::ReadyForWindowsMessageLoop(binding) => Some(binding),
+            Self::Disabled | Self::UnsupportedPlatform { .. } => None,
         }
     }
 }
@@ -118,7 +125,7 @@ impl HotkeyBinding {
         })
     }
 
-    fn display(&self) -> String {
+    pub fn display(&self) -> String {
         let mut parts = Vec::new();
         if self.modifiers.ctrl {
             parts.push("Ctrl".to_string());
@@ -262,7 +269,7 @@ fn hotkey_code(key: &HotkeyKey) -> Option<global_hotkey::hotkey::Code> {
 }
 
 #[cfg(windows)]
-fn global_hotkey(
+pub fn windows_global_hotkey(
     binding: &HotkeyBinding,
 ) -> Result<global_hotkey::hotkey::HotKey, HotkeyLoopError> {
     use global_hotkey::hotkey::{HotKey, Modifiers};
@@ -308,7 +315,7 @@ fn run_platform_hotkey_loop(binding: &HotkeyBinding) -> Result<HotkeyLoopStatus,
         binding: binding_label.clone(),
         details: source.to_string(),
     })?;
-    let hotkey = global_hotkey(binding)?;
+    let hotkey = windows_global_hotkey(binding)?;
 
     manager
         .register(hotkey)
@@ -395,6 +402,25 @@ mod tests {
     }
 
     #[test]
+    fn ready_hotkey_state_exposes_configured_windows_binding() {
+        let state = HotkeyState::ReadyForWindowsMessageLoop(HotkeyBinding {
+            key: HotkeyKey::Space,
+            modifiers: HotkeyModifiers {
+                ctrl: true,
+                alt: true,
+                shift: false,
+                meta: false,
+            },
+        });
+
+        let binding = state
+            .windows_binding()
+            .expect("ready hotkey state should expose its binding");
+
+        assert_eq!(binding.display(), "Ctrl+Alt+Space");
+    }
+
+    #[test]
     fn disabled_hotkey_loop_exits_without_registering() {
         let status =
             run_hotkey_loop(&HotkeyState::Disabled).expect("disabled hotkey loop should not fail");
@@ -441,8 +467,8 @@ mod tests {
             },
         };
 
-        let hotkey =
-            global_hotkey(&binding).expect("supported binding should map to a global hotkey");
+        let hotkey = windows_global_hotkey(&binding)
+            .expect("supported binding should map to a global hotkey");
 
         assert_eq!(hotkey.key, Code::KeyP);
         assert!(hotkey.mods.contains(Modifiers::CONTROL));
@@ -463,7 +489,7 @@ mod tests {
             },
         };
 
-        let error = global_hotkey(&binding)
+        let error = windows_global_hotkey(&binding)
             .expect_err("out-of-range function key should fail before registration");
 
         assert!(matches!(error, HotkeyLoopError::InvalidBinding { .. }));
@@ -482,7 +508,7 @@ mod tests {
             },
         };
 
-        let error = global_hotkey(&binding)
+        let error = windows_global_hotkey(&binding)
             .expect_err("modifierless hotkey should fail before registration");
 
         assert!(matches!(error, HotkeyLoopError::InvalidBinding { .. }));

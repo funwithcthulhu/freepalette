@@ -24,10 +24,11 @@ cargo test --workspace --all-features
 
 - `freepalette-core`: config, provider registry, providers, fuzzy search,
   ranking, app indexing, and action dispatch.
-- `freepalette-daemon`: shared local daemon state and the Windows foreground
-  hotkey loop. It is not a background IPC process yet.
+- `freepalette-daemon`: shared local daemon state and Windows foreground
+  hotkey diagnostics. It is not a background IPC process yet.
 - `freepalette-cli`: command parsing and terminal output.
-- `freepalette-ui`: minimal egui palette state and window.
+- `freepalette-ui`: minimal egui palette state, window, and Windows hotkey
+  bridge.
 - `freepalette-plugin-api`: provider/action data types.
 
 ## Adding A Provider

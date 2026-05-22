@@ -46,13 +46,16 @@ project settles.
 - In-memory clipboard history state with capture off by default.
 - Clipboard retention limits and clear behavior in daemon state.
 - Hotkey config validation and platform status reporting.
+- Windows UI hotkey bridge that shows and focuses the local palette process.
 - Foreground Windows hotkey registration through `freepalette-daemon run`.
 - UI shell execution refusal with no shell confirmation flow yet.
 
 ## Next
 
 - Improve CLI and provider documentation as behavior changes.
-- Connect the Windows hotkey press to opening or focusing the local palette.
+- Add tray integration or another clear way to keep the UI process discoverable
+  after it is hidden.
+- Add explicit autostart setup only after the tray/background behavior is clear.
 - Add explicit user controls before any real system clipboard capture.
 - Add a CLI command for app index refresh if a long-running process needs it.
 - Keep shell execution blocked in UI until a confirmation flow exists.
@@ -60,7 +63,8 @@ project settles.
 ## Later
 
 - Long-running daemon process.
-- Tray or IPC integration for the daemon.
+- IPC integration for a separate daemon if the single-process UI path is not
+  enough.
 - System clipboard capture.
 - Clipboard persistence after storage location and deletion behavior are
   documented.

@@ -28,15 +28,16 @@ daemon/plugin-facing crates.
 - Clipboard provider backed by explicit in-memory daemon state. System clipboard
   capture and persistence are not implemented.
 - Hotkey config validation in daemon state.
-- Foreground Windows hotkey registration with `freepalette-daemon run` when the
-  hotkey is enabled. Pressing the hotkey is logged; palette activation is not
-  wired yet.
+- Windows global hotkey registration in `freepalette-ui` when the hotkey is
+  enabled. The hotkey shows and focuses the local palette process.
+- Foreground Windows hotkey registration with `freepalette-daemon run` for
+  diagnostics. That path logs presses but does not open the UI.
 
 ## What Does Not Work Yet
 
 - A long-running IPC daemon.
 - macOS or Linux global hotkey registration.
-- Opening or focusing the palette from the hotkey.
+- Tray integration or autostart setup.
 - Clipboard capture or persistence.
 - External plugin execution.
 - macOS or Linux app indexing.
@@ -108,8 +109,11 @@ ctrl = true
 alt = true
 ```
 
-The daemon validates this shape, but it does not register a live global hotkey
-unless the Windows foreground daemon is started:
+The UI validates this shape through daemon state. On Windows, `freepalette-ui`
+registers the binding when the hotkey is enabled. Escape hides the window
+instead of exiting so the same process can be shown again by the hotkey.
+
+The daemon can also register the same binding in a foreground diagnostic mode:
 
 ```powershell
 cargo run -p freepalette-daemon -- run
@@ -117,7 +121,8 @@ cargo run -p freepalette-daemon -- run
 
 With the default config this command exits because the hotkey is disabled. When
 enabled on Windows, it registers the configured binding and waits in the
-foreground. It does not open or focus the UI yet.
+foreground. This diagnostic daemon path logs presses but does not open or focus
+the UI.
 
 ## Windows App Indexing
 
@@ -140,12 +145,12 @@ a clearly labeled Notepad fallback only when there are no configured apps.
 - `freepalette-cli`: command-line search, inspection, and explicit run support.
 - `freepalette-daemon`: shared local state for config loading, provider setup,
   search, app index reports, refresh, in-memory clipboard history, hotkey
-  config state, Windows foreground hotkey registration, and action execution
+  config state, Windows foreground hotkey diagnostics, and action execution
   policy. It is not an IPC daemon yet.
 - `freepalette-plugin-api`: public provider/action data types used by built-in
   providers and future plugin protocol work.
-- `freepalette-ui`: minimal egui palette. It is early and has no hotkey, tray,
-  or daemon IPC.
+- `freepalette-ui`: minimal egui palette with Windows hotkey registration. It
+  is early and has no tray, autostart, or daemon IPC.
 
 ## Security-Sensitive Areas
 

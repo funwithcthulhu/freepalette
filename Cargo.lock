@@ -1027,6 +1027,7 @@ dependencies = [
  "eframe",
  "freepalette-core",
  "freepalette-daemon",
+ "global-hotkey",
  "thiserror 2.0.18",
  "tracing",
  "tracing-subscriber",

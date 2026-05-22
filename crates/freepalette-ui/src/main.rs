@@ -1,11 +1,18 @@
+use std::time::Duration;
+
 use eframe::egui::{self, Color32, Key, RichText, TextEdit};
 use freepalette_core::{Action, RankedResult};
-use freepalette_ui::{PaletteState, SelectionDirection};
+use freepalette_ui::{PaletteState, SelectionDirection, UiHotkeyBridge};
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt().with_target(false).init();
 
     let state = PaletteState::from_default_config()?;
+    let hotkey_bridge = UiHotkeyBridge::from_state(state.hotkey_state())?;
+    if let Some(label) = hotkey_bridge.label() {
+        tracing::info!(hotkey = %label, "UI global hotkey registered");
+    }
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([720.0, 420.0])
@@ -17,7 +24,7 @@ fn main() -> anyhow::Result<()> {
     eframe::run_native(
         "freepalette",
         options,
-        Box::new(|_| Ok(Box::new(PaletteApp::new(state)))),
+        Box::new(|_| Ok(Box::new(PaletteApp::new(state, hotkey_bridge)))),
     )
     .map_err(|error| anyhow::anyhow!("failed to run freepalette UI: {error}"))?;
 
@@ -26,16 +33,18 @@ fn main() -> anyhow::Result<()> {
 
 struct PaletteApp {
     state: PaletteState,
+    hotkey_bridge: UiHotkeyBridge,
     query: String,
     focus_search: bool,
 }
 
 impl PaletteApp {
-    fn new(state: PaletteState) -> Self {
+    fn new(state: PaletteState, hotkey_bridge: UiHotkeyBridge) -> Self {
         let query = state.query().to_string();
 
         Self {
             state,
+            hotkey_bridge,
             query,
             focus_search: true,
         }
@@ -43,7 +52,7 @@ impl PaletteApp {
 
     fn handle_keys(&mut self, context: &egui::Context) {
         if context.input(|input| input.key_pressed(Key::Escape)) {
-            context.send_viewport_cmd(egui::ViewportCommand::Close);
+            self.close_or_hide(context);
         }
         if context.input(|input| input.key_pressed(Key::ArrowDown)) {
             self.state.move_selection(SelectionDirection::Next);
@@ -52,7 +61,39 @@ impl PaletteApp {
             self.state.move_selection(SelectionDirection::Previous);
         }
         if context.input(|input| input.key_pressed(Key::Enter)) {
-            self.state.execute_selected();
+            let execution = self.state.execute_selected();
+            if execution.should_hide_palette() {
+                self.close_or_hide(context);
+            }
+        }
+    }
+
+    fn close_or_hide(&mut self, context: &egui::Context) {
+        if self.hotkey_bridge.is_active() {
+            self.state.reset_for_next_activation();
+            self.query.clear();
+            self.focus_search = true;
+            context.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        } else {
+            context.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+    }
+
+    fn show_palette(&mut self, context: &egui::Context) {
+        context.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        context.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        context.send_viewport_cmd(egui::ViewportCommand::Focus);
+        self.focus_search = true;
+    }
+
+    fn handle_hotkey_activation(&mut self, context: &egui::Context) {
+        if !self.hotkey_bridge.is_active() {
+            return;
+        }
+
+        context.request_repaint_after(Duration::from_millis(100));
+        if self.hotkey_bridge.take_activation_request() {
+            self.show_palette(context);
         }
     }
 
@@ -102,6 +143,7 @@ impl PaletteApp {
 
 impl eframe::App for PaletteApp {
     fn logic(&mut self, context: &egui::Context, _frame: &mut eframe::Frame) {
+        self.handle_hotkey_activation(context);
         self.handle_keys(context);
     }
 
