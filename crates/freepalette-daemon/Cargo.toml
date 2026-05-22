@@ -20,5 +20,12 @@ tracing-subscriber.workspace = true
 [dependencies.freepalette-core]
 path = "../freepalette-core"
 
+[target.'cfg(windows)'.dependencies.global-hotkey]
+version = "0.8.0"
+
+[target.'cfg(windows)'.dependencies.tao]
+version = "0.35.2"
+default-features = false
+
 [lints]
 workspace = true
