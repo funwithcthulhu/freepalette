@@ -101,10 +101,12 @@ impl PaletteApp {
 }
 
 impl eframe::App for PaletteApp {
-    fn update(&mut self, context: &egui::Context, _frame: &mut eframe::Frame) {
+    fn logic(&mut self, context: &egui::Context, _frame: &mut eframe::Frame) {
         self.handle_keys(context);
+    }
 
-        egui::CentralPanel::default().show(context, |ui| {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show_inside(ui, |ui| {
             ui.vertical_centered_justified(|ui| {
                 ui.add_space(8.0);
                 self.show_search(ui);
