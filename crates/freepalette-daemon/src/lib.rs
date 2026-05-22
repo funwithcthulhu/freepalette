@@ -461,6 +461,28 @@ mod tests {
     }
 
     #[test]
+    fn load_from_path_minimal_config_uses_default_provider_values() {
+        let path = temp_config_path("minimal-provider-defaults");
+        fs::write(
+            &path,
+            r#"
+                [providers]
+                apps = false
+            "#,
+        )
+        .expect("test config should be writable");
+
+        let state = DaemonState::load_from_path(&path).expect("minimal config should load");
+        fs::remove_file(&path).expect("test config should be removable");
+
+        assert_eq!(
+            state.provider_ids(),
+            vec!["calculator", "shell", "clipboard"]
+        );
+        assert!(state.app_index_report().is_none());
+    }
+
+    #[test]
     fn app_index_report_is_available_when_app_provider_is_enabled() {
         let state = DaemonState::from_config(Config {
             providers: provider_config(true, false, false, false),
