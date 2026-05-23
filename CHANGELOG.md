@@ -8,6 +8,9 @@ the core model settles.
 
 ## Unreleased
 
+## 0.5.0 - 2026-05-23
+
+- Bumped workspace crate versions to `0.5.0`.
 - Added checked-in app icon assets for a palette-and-brush mark and wired the
   egui window icon to the same mark used by the Windows tray.
 - Added Windows daily-use documentation for running the current UI, tray,
@@ -17,6 +20,9 @@ the core model settles.
 - Added a Windows launch-at-sign-in toggle from the tray menu using a per-user
   Startup folder shortcut to the current `freepalette-ui` executable.
 - Added a Windows tray icon using a small palette-and-brush mark.
+- Set the egui UI to software rendering after Windows smoke testing found the
+  hardware-accelerated glow path could exit during startup/runtime on this
+  desktop.
 
 ## 0.4.0 - 2026-05-22
 

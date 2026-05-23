@@ -40,7 +40,7 @@ project settles.
 - The daemon binary initializes local state and exits; it is not an IPC process
   yet.
 
-### Unreleased: Clipboard, Hotkey, And UI Lifecycle Groundwork
+### v0.5: Windows UI Lifecycle Groundwork
 
 - Clipboard security model.
 - In-memory clipboard history state with capture off by default.
@@ -54,6 +54,7 @@ project settles.
 - Windows launch-at-sign-in toggle through a per-user Startup folder shortcut.
 - Checked-in palette-and-brush icon assets and shared UI/tray icon rendering.
 - Windows daily-use and UI smoke-test documentation.
+- Software-rendered egui UI for the current Windows desktop path.
 
 ## Next
 
@@ -64,8 +65,6 @@ project settles.
 - Add basic app icons/metadata to indexed app results where platform data is
   available.
 - Embed the checked-in Windows icon when packaging work starts.
-- Cut a small `0.5.0` release after the current Windows UI lifecycle work is
-  verified.
 
 ## Later
 
