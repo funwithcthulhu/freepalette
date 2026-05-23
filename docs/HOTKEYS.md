@@ -42,7 +42,10 @@ cargo run -p freepalette-ui
 ```
 
 Pressing the configured binding shows and focuses that same UI process. Escape
-hides the palette while the hotkey bridge is active.
+hides the palette while the hotkey bridge or tray lifecycle is active.
+
+On Windows, the UI also creates a tray icon when tray setup succeeds. The tray
+can show the palette even when the hotkey is disabled or unavailable.
 
 ## Windows Daemon Diagnostic Path
 

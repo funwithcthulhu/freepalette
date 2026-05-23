@@ -27,8 +27,8 @@ cargo test --workspace --all-features
 - `freepalette-daemon`: shared local daemon state and Windows foreground
   hotkey diagnostics. It is not a background IPC process yet.
 - `freepalette-cli`: command parsing and terminal output.
-- `freepalette-ui`: minimal egui palette state, window, and Windows hotkey
-  bridge.
+- `freepalette-ui`: minimal egui palette state, window, Windows hotkey bridge,
+  Windows tray lifecycle, and Windows launch-at-sign-in setup.
 - `freepalette-plugin-api`: provider/action data types.
 
 ## Adding A Provider

@@ -40,7 +40,7 @@ project settles.
 - The daemon binary initializes local state and exits; it is not an IPC process
   yet.
 
-### Unreleased: Clipboard And Hotkey Groundwork
+### Unreleased: Clipboard, Hotkey, And UI Lifecycle Groundwork
 
 - Clipboard security model.
 - In-memory clipboard history state with capture off by default.
@@ -49,16 +49,18 @@ project settles.
 - Windows UI hotkey bridge that shows and focuses the local palette process.
 - Foreground Windows hotkey registration through `freepalette-daemon run`.
 - UI shell execution refusal with no shell confirmation flow yet.
+- Windows tray lifecycle for showing, hiding, reloading config, and quitting the
+  UI process.
+- Windows launch-at-sign-in toggle through a per-user Startup folder shortcut.
 
 ## Next
 
 - Improve CLI and provider documentation as behavior changes.
-- Add tray integration or another clear way to keep the UI process discoverable
-  after it is hidden.
-- Add explicit autostart setup only after the tray/background behavior is clear.
 - Add explicit user controls before any real system clipboard capture.
 - Add a CLI command for app index refresh if a long-running process needs it.
 - Keep shell execution blocked in UI until a confirmation flow exists.
+- Add basic app icons/metadata to indexed app results where platform data is
+  available.
 
 ## Later
 
@@ -69,6 +71,7 @@ project settles.
 - Clipboard persistence after storage location and deletion behavior are
   documented.
 - Better app launch metadata and icons.
+- macOS and Linux tray/autostart equivalents if the UI lifecycle model holds up.
 - macOS and Linux app indexing.
 - Subprocess plugin protocol.
 - Packaging notes for each platform.
