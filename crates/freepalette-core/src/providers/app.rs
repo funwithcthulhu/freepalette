@@ -329,6 +329,10 @@ fn action_for_app(app: &IndexedApp) -> Action {
 }
 
 fn launch_command(command: &str, args: &[String]) -> Result<(), PluginError> {
+    if command_is_explicit_path(command) {
+        ensure_app_target_exists(Path::new(command))?;
+    }
+
     Command::new(command).args(args).spawn().map_err(|source| {
         PluginError::Action(format!("failed to launch app '{command}': {source}"))
     })?;
@@ -337,12 +341,29 @@ fn launch_command(command: &str, args: &[String]) -> Result<(), PluginError> {
 }
 
 fn open_path_with_default_app(path: &str) -> Result<(), PluginError> {
+    ensure_app_target_exists(Path::new(path))?;
+
     platform_open_path_with_default_app(Path::new(path)).map_err(|source| {
         PluginError::Action(format!(
             "failed to open path '{}' with the default app: {source}",
             Path::new(path).display()
         ))
     })
+}
+
+fn command_is_explicit_path(command: &str) -> bool {
+    Path::new(command).is_absolute()
+}
+
+fn ensure_app_target_exists(path: &Path) -> Result<(), PluginError> {
+    if path.exists() {
+        Ok(())
+    } else {
+        Err(PluginError::Action(format!(
+            "app target does not exist: {}",
+            path.display()
+        )))
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -608,7 +629,26 @@ fn keywords_for_discovered_app(path: &Path, extension: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+    use crate::{providers::CalculatorProvider, ProviderRegistry};
+
     use super::*;
+
+    fn stale_indexed_app() -> (AppLauncherProvider, PathBuf) {
+        let missing_target = temp_root("stale-app").join("Missing App.exe");
+        let missing_target_string = missing_target.to_string_lossy().into_owned();
+        let indexed = AppIndex {
+            entries: vec![IndexedApp::discovered(
+                AppEntry::new("Stale App", missing_target_string),
+                missing_target.clone(),
+            )],
+            roots_checked: 1,
+        };
+
+        (
+            AppLauncherProvider::from_config_and_index_result(&Config::default(), Ok(indexed)),
+            missing_target,
+        )
+    }
 
     fn temp_root(name: &str) -> PathBuf {
         let unique = std::time::SystemTime::now()
@@ -629,6 +669,85 @@ mod tests {
         assert_eq!(result.provider.as_str(), "apps");
         assert_eq!(result.title, "Plain Text");
         assert_eq!(result.keywords, ["notepad"]);
+    }
+
+    #[test]
+    fn stale_indexed_app_searches_without_panicking() {
+        let (provider, missing_target) = stale_indexed_app();
+
+        let results = provider
+            .search(&SearchContext::new("stale", 10))
+            .expect("stale indexed app search should not fail");
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].title, "Stale App");
+        let missing_target_string = missing_target.to_string_lossy().into_owned();
+        assert!(matches!(
+            &results[0].action,
+            Action::LaunchApp { command, args }
+                if command == &missing_target_string && args.is_empty()
+        ));
+
+        let report = provider.index_report();
+        assert_eq!(report.entries.len(), 1);
+        assert_eq!(
+            report.entries[0].source,
+            AppIndexEntrySource::WindowsStartMenu
+        );
+        assert_eq!(
+            report.entries[0].source_detail.as_deref(),
+            Some(missing_target.to_string_lossy().as_ref())
+        );
+    }
+
+    #[test]
+    fn stale_indexed_app_execution_fails_clearly() {
+        let (provider, missing_target) = stale_indexed_app();
+        let result = provider
+            .search(&SearchContext::new("stale", 10))
+            .expect("stale indexed app search should not fail")
+            .into_iter()
+            .next()
+            .expect("stale app result should be present");
+
+        let error = provider
+            .execute(&result.action)
+            .expect_err("stale app launch should fail before spawning");
+        let message = error.to_string();
+
+        assert!(message.contains("app target does not exist"));
+        assert!(message.contains(&missing_target.to_string_lossy().to_string()));
+    }
+
+    #[test]
+    fn stale_shortcut_open_path_execution_fails_clearly() {
+        let missing_shortcut = temp_root("stale-shortcut").join("Missing Shortcut.lnk");
+
+        let error = open_path_with_default_app(&missing_shortcut.to_string_lossy())
+            .expect_err("stale shortcut should fail before opening with the platform shell");
+        let message = error.to_string();
+
+        assert!(message.contains("app target does not exist"));
+        assert!(message.contains(&missing_shortcut.to_string_lossy().to_string()));
+    }
+
+    #[test]
+    fn stale_indexed_app_does_not_displace_calculator_results() {
+        let (provider, _missing_target) = stale_indexed_app();
+        let mut registry = ProviderRegistry::new();
+        registry
+            .register(provider)
+            .expect("stale app provider should register");
+        registry
+            .register(CalculatorProvider)
+            .expect("calculator provider should register");
+
+        let results = registry
+            .search("calc 2+2", 10)
+            .expect("search with stale app should succeed");
+
+        assert_eq!(results[0].result.provider, ProviderId::from("calculator"));
+        assert_eq!(results[0].result.title, "2+2 = 4");
     }
 
     #[test]
@@ -760,6 +879,26 @@ mod tests {
                     .as_deref()
                     .is_some_and(|subtitle| subtitle.contains("Fallback sample"))
         }));
+    }
+
+    #[test]
+    fn fallback_sample_report_stays_separate_from_indexed_apps() {
+        let provider = AppLauncherProvider::from_config_and_index_result(
+            &Config::default(),
+            Err(AppIndexError::UnsupportedPlatform),
+        );
+
+        let report = provider.index_report();
+
+        assert_eq!(report.entries.len(), 1);
+        assert_eq!(report.entries[0].name, "Notepad");
+        assert_eq!(report.entries[0].source, AppIndexEntrySource::Fallback);
+        assert!(report.entries[0]
+            .source_detail
+            .as_deref()
+            .is_some_and(|detail| {
+                detail.contains("Windows Start Menu indexing is only available on Windows")
+            }));
     }
 
     #[test]

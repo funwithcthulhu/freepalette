@@ -483,6 +483,37 @@ mod tests {
     }
 
     #[test]
+    fn stale_app_entry_does_not_change_shell_execution_guard() {
+        let missing_app = temp_config_path("missing-app-target").with_extension("exe");
+        let state = DaemonState::from_config(Config {
+            providers: provider_config(true, false, true, false),
+            apps: vec![AppEntry::new(
+                "Stale App",
+                missing_app.to_string_lossy().into_owned(),
+            )],
+            ..Default::default()
+        })
+        .expect("daemon state with stale app should initialize");
+
+        let results = state
+            .search("> echo hello", None)
+            .expect("shell search should succeed with stale app present");
+        let shell_result = results
+            .iter()
+            .find(|ranked| matches!(ranked.result.action, Action::RunShell { .. }))
+            .expect("shell result should remain visible");
+
+        let error = state
+            .execute_result(
+                &shell_result.result,
+                ActionExecutionPolicy::BlockShellCommands,
+            )
+            .expect_err("shell execution should remain blocked");
+
+        assert!(matches!(error, DaemonError::ShellCommandBlocked));
+    }
+
+    #[test]
     fn app_index_report_is_available_when_app_provider_is_enabled() {
         let state = DaemonState::from_config(Config {
             providers: provider_config(true, false, false, false),
