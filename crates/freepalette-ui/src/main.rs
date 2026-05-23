@@ -26,6 +26,8 @@ fn main() -> anyhow::Result<()> {
                 height: APP_ICON_SIZE,
             })
             .with_title("freepalette"),
+        // Prefer predictable startup on Windows while the UI is still early.
+        hardware_acceleration: eframe::HardwareAcceleration::Off,
         ..Default::default()
     };
 

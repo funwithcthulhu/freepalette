@@ -23,9 +23,3 @@ Crates should keep `license = "MIT OR Apache-2.0"`. The repository keeps
 5. Update `CHANGELOG.md`.
 6. Tag the release.
 7. Publish crates only when the API is useful and stable enough.
-
-## Next Candidate
-
-The current unreleased work is enough for a small `0.5.0` candidate once it is
-verified: Windows hotkey/UI lifecycle work, tray controls, launch at sign-in,
-and the first checked-in app icon assets.
