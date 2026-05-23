@@ -238,6 +238,23 @@ mod tests {
     }
 
     #[test]
+    fn explicit_missing_config_path_reports_read_error() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after Unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("freepalette-explicit-missing-{unique}.toml"));
+
+        let error = Config::load_from_path(&path).expect_err("explicit missing config should fail");
+
+        assert!(matches!(error, CoreError::ConfigRead { .. }));
+        assert!(
+            error.to_string().contains("failed to read config at"),
+            "read error should include config path context"
+        );
+    }
+
+    #[test]
     fn minimal_valid_config_uses_defaults_for_missing_fields() {
         let input = r#"
             [providers]

@@ -171,6 +171,20 @@ fn run_shell_query_requires_allow_shell() {
 }
 
 #[test]
+fn empty_config_keeps_shell_execution_blocked_by_default() {
+    let config = write_config("empty-shell-default", "");
+    let config_arg = config.path_arg();
+
+    let output = run_freepalette(&["--config", &config_arg, "run", "> echo hello"]);
+
+    assert!(!output.status.success());
+    assert!(!output_text(&output.stdout).contains("Running:"));
+    assert!(
+        output_text(&output.stderr).contains("refusing to run shell command without --allow-shell")
+    );
+}
+
+#[test]
 fn search_run_shell_query_requires_allow_shell() {
     let config = write_config(
         "shell-search-run",
@@ -214,6 +228,42 @@ fn run_calculator_query_is_not_blocked_by_shell_guard() {
     assert!(stdout.contains("Running: [calculator] 2+2 = 4"));
     assert!(stdout.contains("calculator result ready to copy: 4"));
     assert!(!output_text(&output.stderr).contains("--allow-shell"));
+}
+
+#[test]
+fn providers_command_accepts_unknown_config_keys() {
+    let config = write_config(
+        "unknown-keys",
+        r#"
+            unknown_root_key = "ignored"
+
+            [providers]
+            apps = false
+            calculator = false
+            shell = true
+            clipboard = false
+            unknown_provider_key = true
+        "#,
+    );
+    let config_arg = config.path_arg();
+
+    let output = run_freepalette(&["--config", &config_arg, "providers"]);
+
+    assert!(output.status.success());
+    assert_eq!(output_text(&output.stdout), "shell\n");
+}
+
+#[test]
+fn invalid_config_file_fails_with_parse_context() {
+    let config = write_config("invalid", "[providers\nshell = true");
+    let config_arg = config.path_arg();
+
+    let output = run_freepalette(&["--config", &config_arg, "providers"]);
+
+    assert!(!output.status.success());
+    let stderr = output_text(&output.stderr);
+    assert!(stderr.contains("failed to load config from"));
+    assert!(stderr.contains("failed to parse config at"));
 }
 
 #[test]
