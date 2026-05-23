@@ -1,10 +1,14 @@
+mod autostart;
 mod hotkey;
+mod tray;
 
 use freepalette_core::{Action, Config, RankedResult};
 use freepalette_daemon::{ActionExecutionPolicy, DaemonError, DaemonState, HotkeyState};
 use thiserror::Error;
 
+pub use autostart::{UiAutostart, UiAutostartError, UiAutostartStatus};
 pub use hotkey::{UiHotkeyBridge, UiHotkeyError};
+pub use tray::{TrayCommand, UiTray, UiTrayError};
 
 #[derive(Debug, Error)]
 pub enum UiError {
@@ -55,6 +59,14 @@ impl PaletteState {
 
     pub fn status(&self) -> &PaletteStatus {
         &self.status
+    }
+
+    pub fn set_status_info(&mut self, message: impl Into<String>) {
+        self.status = PaletteStatus::Info(message.into());
+    }
+
+    pub fn set_status_error(&mut self, message: impl Into<String>) {
+        self.status = PaletteStatus::Error(message.into());
     }
 
     pub fn hotkey_state(&self) -> &HotkeyState {
@@ -118,6 +130,19 @@ impl PaletteState {
             Err(error) => {
                 self.status = PaletteStatus::Error(error.to_string());
                 PaletteExecution::Failed
+            }
+        }
+    }
+
+    pub fn reload_config(&mut self) {
+        match self.daemon.reload_config() {
+            Ok(()) => {
+                let query = self.query.clone();
+                self.set_query(query);
+                self.status = PaletteStatus::Info("Config reloaded".to_string());
+            }
+            Err(error) => {
+                self.status = PaletteStatus::Error(error.to_string());
             }
         }
     }
@@ -309,6 +334,22 @@ mod tests {
         assert!(state.results().is_empty());
         assert_eq!(state.selected_index(), None);
         assert_eq!(state.status(), &PaletteStatus::Ready);
+    }
+
+    #[test]
+    fn reload_config_keeps_current_query_visible() {
+        let mut state = PaletteState::from_config(Config::default())
+            .expect("default providers should register");
+
+        state.set_query("calc 2+2");
+        state.reload_config();
+
+        assert_eq!(state.query(), "calc 2+2");
+        assert_eq!(state.results()[0].result.title, "2+2 = 4");
+        assert_eq!(
+            state.status(),
+            &PaletteStatus::Info("Config reloaded".to_string())
+        );
     }
 
     #[test]

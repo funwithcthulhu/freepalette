@@ -2,7 +2,9 @@ use std::time::Duration;
 
 use eframe::egui::{self, Color32, Key, RichText, TextEdit};
 use freepalette_core::{Action, RankedResult};
-use freepalette_ui::{PaletteState, SelectionDirection, UiHotkeyBridge};
+use freepalette_ui::{
+    PaletteState, SelectionDirection, TrayCommand, UiAutostart, UiHotkeyBridge, UiTray,
+};
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt().with_target(false).init();
@@ -34,19 +36,24 @@ fn main() -> anyhow::Result<()> {
 struct PaletteApp {
     state: PaletteState,
     hotkey_bridge: UiHotkeyBridge,
+    tray: Option<UiTray>,
     query: String,
     focus_search: bool,
+    exit_requested: bool,
 }
 
 impl PaletteApp {
-    fn new(state: PaletteState, hotkey_bridge: UiHotkeyBridge) -> Self {
+    fn new(mut state: PaletteState, hotkey_bridge: UiHotkeyBridge) -> Self {
         let query = state.query().to_string();
+        let tray = create_tray(&mut state);
 
         Self {
             state,
             hotkey_bridge,
+            tray,
             query,
             focus_search: true,
+            exit_requested: false,
         }
     }
 
@@ -69,14 +76,27 @@ impl PaletteApp {
     }
 
     fn close_or_hide(&mut self, context: &egui::Context) {
-        if self.hotkey_bridge.is_active() {
-            self.state.reset_for_next_activation();
-            self.query.clear();
-            self.focus_search = true;
-            context.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        if self.background_lifecycle_active() {
+            self.hide_palette(context);
         } else {
             context.send_viewport_cmd(egui::ViewportCommand::Close);
         }
+    }
+
+    fn background_lifecycle_active(&self) -> bool {
+        self.hotkey_bridge.is_active()
+            || self
+                .tray
+                .as_ref()
+                .map(|tray| tray.is_active())
+                .unwrap_or(false)
+    }
+
+    fn hide_palette(&mut self, context: &egui::Context) {
+        self.state.reset_for_next_activation();
+        self.query.clear();
+        self.focus_search = true;
+        context.send_viewport_cmd(egui::ViewportCommand::Visible(false));
     }
 
     fn show_palette(&mut self, context: &egui::Context) {
@@ -84,6 +104,19 @@ impl PaletteApp {
         context.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
         context.send_viewport_cmd(egui::ViewportCommand::Focus);
         self.focus_search = true;
+    }
+
+    fn quit(&mut self, context: &egui::Context) {
+        self.exit_requested = true;
+        context.send_viewport_cmd(egui::ViewportCommand::Close);
+    }
+
+    fn handle_close_request(&mut self, context: &egui::Context) {
+        let close_requested = context.input(|input| input.viewport().close_requested());
+        if close_requested && !self.exit_requested && self.background_lifecycle_active() {
+            context.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.hide_palette(context);
+        }
     }
 
     fn handle_hotkey_activation(&mut self, context: &egui::Context) {
@@ -94,6 +127,68 @@ impl PaletteApp {
         context.request_repaint_after(Duration::from_millis(100));
         if self.hotkey_bridge.take_activation_request() {
             self.show_palette(context);
+        }
+    }
+
+    fn handle_tray_events(&mut self, context: &egui::Context) {
+        if self.tray.is_none() {
+            return;
+        }
+
+        context.request_repaint_after(Duration::from_millis(100));
+        let command = self.tray.as_ref().and_then(UiTray::poll_command);
+        if let Some(command) = command {
+            self.handle_tray_command(command, context);
+        }
+    }
+
+    fn handle_tray_command(&mut self, command: TrayCommand, context: &egui::Context) {
+        match command {
+            TrayCommand::Show => self.show_palette(context),
+            TrayCommand::Hide => self.hide_palette(context),
+            TrayCommand::ReloadConfig => {
+                self.state.reload_config();
+                self.query = self.state.query().to_string();
+            }
+            TrayCommand::EnableAutostart => self.enable_autostart(),
+            TrayCommand::DisableAutostart => self.disable_autostart(),
+            TrayCommand::Quit => self.quit(context),
+        }
+    }
+
+    fn enable_autostart(&mut self) {
+        match UiAutostart::enable() {
+            Ok(shortcut) => {
+                self.state
+                    .set_status_info(format!("Launch at sign-in enabled: {}", shortcut.display()));
+                self.refresh_tray_autostart_menu();
+            }
+            Err(error) => {
+                self.state
+                    .set_status_error(format!("Could not enable launch at sign-in: {error}"));
+            }
+        }
+    }
+
+    fn disable_autostart(&mut self) {
+        match UiAutostart::disable() {
+            Ok(shortcut) => {
+                self.state.set_status_info(format!(
+                    "Launch at sign-in disabled: {}",
+                    shortcut.display()
+                ));
+                self.refresh_tray_autostart_menu();
+            }
+            Err(error) => {
+                self.state
+                    .set_status_error(format!("Could not disable launch at sign-in: {error}"));
+            }
+        }
+    }
+
+    fn refresh_tray_autostart_menu(&self) {
+        if let Some(tray) = &self.tray {
+            tray.refresh_autostart_menu();
         }
     }
 
@@ -143,7 +238,9 @@ impl PaletteApp {
 
 impl eframe::App for PaletteApp {
     fn logic(&mut self, context: &egui::Context, _frame: &mut eframe::Frame) {
+        self.handle_close_request(context);
         self.handle_hotkey_activation(context);
+        self.handle_tray_events(context);
         self.handle_keys(context);
     }
 
@@ -162,6 +259,24 @@ impl eframe::App for PaletteApp {
             });
         });
     }
+}
+
+#[cfg(windows)]
+fn create_tray(state: &mut PaletteState) -> Option<UiTray> {
+    match UiTray::new() {
+        Ok(tray) => Some(tray),
+        Err(error) => {
+            let message = format!("Tray unavailable: {error}");
+            tracing::warn!("{message}");
+            state.set_status_error(message);
+            None
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn create_tray(_state: &mut PaletteState) -> Option<UiTray> {
+    None
 }
 
 fn show_result_row(ui: &mut egui::Ui, ranked: &RankedResult, selected: bool) {

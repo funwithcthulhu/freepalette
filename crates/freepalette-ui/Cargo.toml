@@ -27,5 +27,19 @@ path = "../freepalette-daemon"
 [target.'cfg(windows)'.dependencies.global-hotkey]
 version = "0.8.0"
 
+[target.'cfg(windows)'.dependencies.tray-icon]
+version = "0.24.0"
+default-features = false
+features = [
+    "common-controls-v6",
+]
+
+[target.'cfg(windows)'.dependencies.win-desktop-utils]
+version = "0.5.7"
+default-features = false
+features = [
+    "shortcuts",
+]
+
 [lints]
 workspace = true

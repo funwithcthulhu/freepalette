@@ -30,6 +30,10 @@ daemon/plugin-facing crates.
 - Hotkey config validation in daemon state.
 - Windows global hotkey registration in `freepalette-ui` when the hotkey is
   enabled. The hotkey shows and focuses the local palette process.
+- Windows tray integration in `freepalette-ui`. The tray can show, hide, reload
+  config, toggle launch at sign-in, and quit.
+- Windows launch-at-sign-in setup from the tray menu. This writes or removes a
+  per-user Startup folder shortcut for the current `freepalette-ui` executable.
 - Foreground Windows hotkey registration with `freepalette-daemon run` for
   diagnostics. That path logs presses but does not open the UI.
 
@@ -37,7 +41,7 @@ daemon/plugin-facing crates.
 
 - A long-running IPC daemon.
 - macOS or Linux global hotkey registration.
-- Tray integration or autostart setup.
+- macOS or Linux tray integration or autostart setup.
 - Clipboard capture or persistence.
 - External plugin execution.
 - macOS or Linux app indexing.
@@ -111,7 +115,13 @@ alt = true
 
 The UI validates this shape through daemon state. On Windows, `freepalette-ui`
 registers the binding when the hotkey is enabled. Escape hides the window
-instead of exiting so the same process can be shown again by the hotkey.
+instead of exiting so the same process can be shown again by the hotkey or tray.
+
+On Windows, `freepalette-ui` also creates a tray icon with a small generated
+palette-and-brush mark. The tray menu can show or hide the palette, reload
+config, enable or disable launch at sign-in, and quit the process. Launch at
+sign-in is implemented as a per-user shortcut in the Windows Startup folder
+pointing at the current `freepalette-ui` executable.
 
 The daemon can also register the same binding in a foreground diagnostic mode:
 
@@ -150,7 +160,8 @@ a clearly labeled Notepad fallback only when there are no configured apps.
 - `freepalette-plugin-api`: public provider/action data types used by built-in
   providers and future plugin protocol work.
 - `freepalette-ui`: minimal egui palette with Windows hotkey registration. It
-  is early and has no tray, autostart, or daemon IPC.
+  includes Windows tray and launch-at-sign-in controls. It is early and has no
+  daemon IPC.
 
 ## Security-Sensitive Areas
 

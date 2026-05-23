@@ -8,7 +8,10 @@ the core model settles.
 
 ## Unreleased
 
-- No changes yet.
+- Added Windows tray lifecycle for the UI: show, hide, reload config, and quit.
+- Added a Windows launch-at-sign-in toggle from the tray menu using a per-user
+  Startup folder shortcut to the current `freepalette-ui` executable.
+- Added a generated tray icon using a small palette-and-brush mark.
 
 ## 0.4.0 - 2026-05-22
 

@@ -65,8 +65,12 @@ On Windows, the UI process can register the configured hotkey itself. Pressing
 that hotkey shows and focuses the same local palette process. Escape hides the
 window when the hotkey bridge is active; otherwise Escape exits the UI.
 
-There is no tray integration, autostart setup, IPC daemon connection, or polished
-desktop shell.
+On Windows, the same UI process also owns a tray icon. The tray menu can show or
+hide the palette, reload config through daemon state, toggle launch at sign-in,
+and quit the process. Launch at sign-in writes or removes a per-user Windows
+Startup folder shortcut for the current `freepalette-ui` executable.
+
+There is no IPC daemon connection or polished desktop shell.
 
 ### freepalette-plugin-api
 
@@ -152,5 +156,7 @@ are no configured apps.
 - Global hotkey registration exists only on Windows. The UI-owned path can show
   and focus the local palette process. The daemon path is diagnostic only. See
   [Hotkeys](HOTKEYS.md).
+- Tray integration and launch-at-sign-in setup exist only in the Windows UI
+  process.
 - External plugin execution is not implemented.
 - The UI is usable for smoke testing but is not a finished launcher.
