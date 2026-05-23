@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">freepalette icon</title>
+  <desc id="desc">A small paint palette with a brush.</desc>
+  <path
+    fill="#4e3626"
+    d="M121 42c52 0 94 33 94 76 0 30-18 58-49 72-8 4-14 11-14 20 0 13-11 24-25 24-52 0-94-39-94-87 0-58 37-105 88-105Z"
+  />
+  <path
+    fill="#e0ae60"
+    d="M121 56c44 0 79 27 79 63 0 25-16 48-42 60-12 6-20 17-20 31 0 5-4 9-10 9-43 0-80-32-80-72 0-51 32-91 73-91Z"
+  />
+  <circle cx="81" cy="105" r="24" fill="#f5ebd3" />
+  <circle cx="119" cy="79" r="18" fill="#d24941" />
+  <circle cx="163" cy="103" r="19" fill="#3d8b5b" />
+  <circle cx="140" cy="160" r="18" fill="#3965bc" />
+  <circle cx="74" cy="154" r="18" fill="#ecce52" />
+  <path
+    fill="#70482a"
+    d="M150 166c8-8 23-6 34 5l50 50c5 5 5 13 0 18s-13 5-18 0l-50-50c-11-11-13-25-5-34l-11 11Z"
+  />
+  <path
+    fill="#2a2d34"
+    d="M137 154c8-8 21-8 30 0l10 10-31 31-10-10c-8-9-8-22 1-31Z"
+  />
+  <path fill="#eeeee6" d="M144 162c4-4 10-4 14 0l-20 20c-4-4-4-11 0-15l6-5Z" />
+</svg>

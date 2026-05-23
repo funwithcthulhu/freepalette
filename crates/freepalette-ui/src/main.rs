@@ -3,7 +3,8 @@ use std::time::Duration;
 use eframe::egui::{self, Color32, Key, RichText, TextEdit};
 use freepalette_core::{Action, RankedResult};
 use freepalette_ui::{
-    PaletteState, SelectionDirection, TrayCommand, UiAutostart, UiHotkeyBridge, UiTray,
+    app_icon_rgba, PaletteState, SelectionDirection, TrayCommand, UiAutostart, UiHotkeyBridge,
+    UiTray, APP_ICON_SIZE,
 };
 
 fn main() -> anyhow::Result<()> {
@@ -19,6 +20,11 @@ fn main() -> anyhow::Result<()> {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([720.0, 420.0])
             .with_min_inner_size([480.0, 280.0])
+            .with_icon(egui::IconData {
+                rgba: app_icon_rgba(),
+                width: APP_ICON_SIZE,
+                height: APP_ICON_SIZE,
+            })
             .with_title("freepalette"),
         ..Default::default()
     };

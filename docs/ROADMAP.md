@@ -52,6 +52,8 @@ project settles.
 - Windows tray lifecycle for showing, hiding, reloading config, and quitting the
   UI process.
 - Windows launch-at-sign-in toggle through a per-user Startup folder shortcut.
+- Checked-in palette-and-brush icon assets and shared UI/tray icon rendering.
+- Windows daily-use and UI smoke-test documentation.
 
 ## Next
 
@@ -61,6 +63,9 @@ project settles.
 - Keep shell execution blocked in UI until a confirmation flow exists.
 - Add basic app icons/metadata to indexed app results where platform data is
   available.
+- Embed the checked-in Windows icon when packaging work starts.
+- Cut a small `0.5.0` release after the current Windows UI lifecycle work is
+  verified.
 
 ## Later
 

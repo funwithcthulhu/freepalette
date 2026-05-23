@@ -1,5 +1,6 @@
 mod autostart;
 mod hotkey;
+mod icon;
 mod tray;
 
 use freepalette_core::{Action, Config, RankedResult};
@@ -8,6 +9,7 @@ use thiserror::Error;
 
 pub use autostart::{UiAutostart, UiAutostartError, UiAutostartStatus};
 pub use hotkey::{UiHotkeyBridge, UiHotkeyError};
+pub use icon::{app_icon_rgba, APP_ICON_SIZE};
 pub use tray::{TrayCommand, UiTray, UiTrayError};
 
 #[derive(Debug, Error)]

@@ -30,8 +30,9 @@ daemon/plugin-facing crates.
 - Hotkey config validation in daemon state.
 - Windows global hotkey registration in `freepalette-ui` when the hotkey is
   enabled. The hotkey shows and focuses the local palette process.
-- Windows tray integration in `freepalette-ui`. The tray can show, hide, reload
-  config, toggle launch at sign-in, and quit.
+- Windows tray integration in `freepalette-ui`, using a checked-in
+  palette-and-brush icon asset. The tray can show, hide, reload config, toggle
+  launch at sign-in, and quit.
 - Windows launch-at-sign-in setup from the tray menu. This writes or removes a
   per-user Startup folder shortcut for the current `freepalette-ui` executable.
 - Foreground Windows hotkey registration with `freepalette-daemon run` for
@@ -117,11 +118,11 @@ The UI validates this shape through daemon state. On Windows, `freepalette-ui`
 registers the binding when the hotkey is enabled. Escape hides the window
 instead of exiting so the same process can be shown again by the hotkey or tray.
 
-On Windows, `freepalette-ui` also creates a tray icon with a small generated
-palette-and-brush mark. The tray menu can show or hide the palette, reload
-config, enable or disable launch at sign-in, and quit the process. Launch at
-sign-in is implemented as a per-user shortcut in the Windows Startup folder
-pointing at the current `freepalette-ui` executable.
+On Windows, `freepalette-ui` also creates a tray icon using the same
+palette-and-brush mark as the app icon asset. The tray menu can show or hide the
+palette, reload config, enable or disable launch at sign-in, and quit the
+process. Launch at sign-in is implemented as a per-user shortcut in the Windows
+Startup folder pointing at the current `freepalette-ui` executable.
 
 The daemon can also register the same binding in a foreground diagnostic mode:
 
@@ -182,6 +183,8 @@ not implemented.
 - [Clipboard security](docs/CLIPBOARD_SECURITY.md)
 - [Development](docs/DEVELOPMENT.md)
 - [Hotkeys](docs/HOTKEYS.md)
+- [Windows daily use](docs/WINDOWS_DAILY_USE.md)
+- [UI smoke test checklist](docs/UI_SMOKE_TEST.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Non-goals](docs/NON_GOALS.md)
 - [Plugin model](docs/PLUGIN_MODEL.md)
