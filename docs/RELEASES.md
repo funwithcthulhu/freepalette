@@ -19,6 +19,13 @@ Crates should keep `license = "MIT OR Apache-2.0"`. The repository keeps
 1. Run `cargo fmt --all -- --check`.
 2. Run `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
 3. Run `cargo test --workspace --all-features`.
-4. Update `CHANGELOG.md`.
-5. Tag the release.
-6. Publish crates only when the API is useful and stable enough.
+4. Run the UI smoke-test checklist when UI lifecycle behavior changed.
+5. Update `CHANGELOG.md`.
+6. Tag the release.
+7. Publish crates only when the API is useful and stable enough.
+
+## Next Candidate
+
+The current unreleased work is enough for a small `0.5.0` candidate once it is
+verified: Windows hotkey/UI lifecycle work, tray controls, launch at sign-in,
+and the first checked-in app icon assets.

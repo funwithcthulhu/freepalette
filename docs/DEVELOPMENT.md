@@ -49,6 +49,12 @@ CLI integration tests live in `crates/freepalette-cli/tests`. Prefer temporary
 config files that disable unrelated providers. That keeps tests independent of
 the local app index.
 
+## UI Smoke Tests
+
+The current UI smoke-test checklist lives in
+[UI_SMOKE_TEST.md](UI_SMOKE_TEST.md). Use it before release candidates and after
+changes to window lifecycle, hotkey, tray, or launch-at-sign-in behavior.
+
 ## Documentation
 
 Update docs in the same pull request when behavior changes. Keep limitations
