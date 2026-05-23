@@ -8,6 +8,11 @@ the core model settles.
 
 ## Unreleased
 
+- No changes yet.
+
+## 0.4.0 - 2026-05-22
+
+- Bumped workspace crate versions to `0.4.0`.
 - Added a local daemon/service state layer for shared config loading, provider
   registry setup, app index refresh, search, and action execution policy.
 - Routed the CLI and minimal UI through the shared daemon state instead of
@@ -30,7 +35,14 @@ the core model settles.
   capture off by default, and daemon tests for retention and clearing.
 - Added global-hotkey config validation and documentation for the future Windows
   message-loop path.
+- Added a Windows foreground hotkey daemon diagnostic loop.
+- Added a Windows UI hotkey bridge that can show and focus the local palette
+  process.
 - Made the UI refuse shell command execution with a UI-specific message.
+- Added regression coverage for shell execution safety, ranking stability,
+  daemon refresh behavior, config loading/defaults, and stale app-index entries.
+- Made explicit local app paths fail clearly before spawn/open when the target no
+  longer exists.
 
 ## 0.3.0 - 2026-05-06
 
