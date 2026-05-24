@@ -57,20 +57,21 @@ separate daemon process yet.
 
 ### freepalette-ui
 
-The UI crate contains a minimal egui palette. It can search, move selection, and
-execute selected non-shell actions through `freepalette-daemon`. Shell actions
-are shown but blocked because there is no confirmation UI yet.
+The UI crate contains a minimal Tauri palette shell. The frontend is static
+HTML, CSS, and JavaScript. It invokes Rust commands in the same process to:
 
-On Windows, the UI process can register the configured hotkey itself. Pressing
-that hotkey shows and focuses the same local palette process. Escape hides the
-window when the hotkey bridge is active; otherwise Escape exits the UI.
+- search through `PaletteState`;
+- move the selected result;
+- execute selected non-shell actions;
+- reload config through daemon state;
+- reset visible palette state.
 
-On Windows, the same UI process also owns a tray icon. The tray menu can show or
-hide the palette, reload config through daemon state, toggle launch at sign-in,
-and quit the process. Launch at sign-in writes or removes a per-user Windows
-Startup folder shortcut for the current `freepalette-ui` executable.
+Shell actions are shown but blocked because there is no confirmation UI yet.
+Escape closes the current window. The Tauri shell does not currently wire the
+older Windows hotkey, tray, or launch-at-sign-in helper modules into the running
+binary.
 
-There is no IPC daemon connection or polished desktop shell.
+There is no IPC daemon connection or finished desktop shell.
 
 ### freepalette-plugin-api
 
@@ -113,9 +114,10 @@ Tests use explicit temporary config files so they do not depend on a developer's
 local machine.
 
 Clipboard capture and global hotkeys are disabled by default. The hotkey config
-can be used by the Windows UI hotkey bridge and by the foreground daemon
-diagnostic loop. Clipboard config is parsed now so future capture work has a
-tested place to attach platform behavior.
+is validated through daemon state and can be used by the foreground daemon
+diagnostic loop. The current Tauri UI does not register the hotkey. Clipboard
+config is parsed now so future capture work has a tested place to attach
+platform behavior.
 
 ## Ranking
 
@@ -153,10 +155,10 @@ are no configured apps.
   daemon code. System clipboard capture and persistence must follow
   [Clipboard Security Model](CLIPBOARD_SECURITY.md).
 - The daemon crate is not an IPC process.
-- Global hotkey registration exists only on Windows. The UI-owned path can show
-  and focus the local palette process. The daemon path is diagnostic only. See
+- Global hotkey registration exists only in the foreground Windows daemon
+  diagnostic path. The Tauri UI does not register a hotkey yet. See
   [Hotkeys](HOTKEYS.md).
-- Tray integration and launch-at-sign-in setup exist only in the Windows UI
-  process.
+- Tray integration and launch-at-sign-in helpers exist in the UI crate, but the
+  current Tauri binary does not wire them into the window lifecycle.
 - External plugin execution is not implemented.
 - The UI is usable for smoke testing but is not a finished launcher.

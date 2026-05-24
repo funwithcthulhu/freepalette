@@ -1,4 +1,5 @@
 /target/
+crates/freepalette-ui/gen/
 **/*.rs.bk
 .env
 .env.*

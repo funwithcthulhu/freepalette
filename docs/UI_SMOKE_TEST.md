@@ -1,7 +1,7 @@
 # UI Smoke Test Checklist
 
-This is a manual checklist for the current desktop UI. It is meant for
-maintainers before a release or after changes to UI lifecycle code.
+This is a manual checklist for the current Tauri desktop UI. It is meant for
+maintainers before a release or after changes to the palette window.
 
 ## Build Checks
 
@@ -33,23 +33,14 @@ Check the palette:
 
 Check lifecycle behavior:
 
-- Escape hides the window while the tray or hotkey lifecycle is active.
-- The tray menu can show the hidden window.
-- The tray menu can hide the visible window.
-- The tray menu can reload config and keep the process running.
-- The tray menu can quit the process.
+- Escape closes the window.
+- Restarting the UI opens a fresh window.
 
-Check launch at sign-in:
+Current Tauri limits:
 
-- Enable launch at sign-in from the tray menu.
-- The UI reports that a Startup folder shortcut was created.
-- Disable launch at sign-in from the tray menu.
-- The UI reports that the shortcut was removed.
-
-Check hotkey behavior if enabled in config:
-
-- The configured binding shows and focuses the UI process.
-- The app does not log arbitrary key presses.
+- No global hotkey is wired into the UI.
+- No tray icon is wired into the UI.
+- No launch-at-sign-in control is wired into the UI.
 
 ## Notes
 

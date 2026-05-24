@@ -231,6 +231,40 @@ fn run_calculator_query_is_not_blocked_by_shell_guard() {
 }
 
 #[test]
+fn run_stale_app_entry_fails_before_launching() {
+    let missing_app = TempMarker::new("missing-app-target");
+    let missing_app_path = missing_app.path().display().to_string();
+    let escaped_missing_app_path = missing_app_path.replace('\\', "\\\\");
+    let config_text = format!(
+        r#"
+            [providers]
+            apps = true
+            calculator = false
+            shell = true
+            clipboard = false
+
+            [[apps]]
+            name = "Stale App"
+            command = "{escaped_missing_app_path}"
+        "#
+    );
+    let config = write_config("stale-app-run", &config_text);
+    let config_arg = config.path_arg();
+
+    let output = run_freepalette(&["--config", &config_arg, "run", "stale"]);
+
+    assert!(!output.status.success());
+    assert!(!output_text(&output.stdout).contains("Running:"));
+    let stderr = output_text(&output.stderr);
+    assert!(stderr.contains("app target does not exist"));
+    assert!(stderr.contains(&missing_app_path));
+    assert!(
+        !missing_app.path().exists(),
+        "stale app test path must remain absent"
+    );
+}
+
+#[test]
 fn providers_command_accepts_unknown_config_keys() {
     let config = write_config(
         "unknown-keys",

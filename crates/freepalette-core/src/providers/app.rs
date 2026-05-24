@@ -329,6 +329,8 @@ fn action_for_app(app: &IndexedApp) -> Action {
 }
 
 fn launch_command(command: &str, args: &[String]) -> Result<(), PluginError> {
+    ensure_launch_command_is_complete(command)?;
+
     if command_is_explicit_path(command) {
         ensure_app_target_exists(Path::new(command))?;
     }
@@ -338,6 +340,16 @@ fn launch_command(command: &str, args: &[String]) -> Result<(), PluginError> {
     })?;
 
     Ok(())
+}
+
+fn ensure_launch_command_is_complete(command: &str) -> Result<(), PluginError> {
+    if command.trim().is_empty() {
+        Err(PluginError::Action(
+            "app launch command is empty; check the app index entry or config".to_string(),
+        ))
+    } else {
+        Ok(())
+    }
 }
 
 fn open_path_with_default_app(path: &str) -> Result<(), PluginError> {
@@ -748,6 +760,38 @@ mod tests {
 
         assert_eq!(results[0].result.provider, ProviderId::from("calculator"));
         assert_eq!(results[0].result.title, "2+2 = 4");
+    }
+
+    #[test]
+    fn indexed_app_with_display_name_but_empty_command_fails_before_launch() {
+        let indexed = AppIndex {
+            entries: vec![IndexedApp::discovered(
+                AppEntry::new("Empty Target", ""),
+                PathBuf::from("Empty Target.lnk"),
+            )],
+            roots_checked: 1,
+        };
+        let provider =
+            AppLauncherProvider::from_config_and_index_result(&Config::default(), Ok(indexed));
+
+        let result = provider
+            .search(&SearchContext::new("empty target", 10))
+            .expect("search with incomplete indexed app should succeed")
+            .into_iter()
+            .next()
+            .expect("incomplete indexed app should remain visible");
+
+        assert_eq!(result.title, "Empty Target");
+        assert!(matches!(
+            result.action,
+            Action::LaunchApp { ref command, ref args } if command.is_empty() && args.is_empty()
+        ));
+
+        let error = provider
+            .execute(&result.action)
+            .expect_err("empty app command should fail before spawning");
+
+        assert!(error.to_string().contains("app launch command is empty"));
     }
 
     #[test]

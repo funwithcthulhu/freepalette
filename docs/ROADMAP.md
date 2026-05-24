@@ -25,7 +25,7 @@ project settles.
 
 ### v0.3: Minimal UI
 
-- egui-based palette window.
+- Tauri-based palette window with a static frontend.
 - Search input.
 - Result list.
 - Keyboard selection.
@@ -46,19 +46,19 @@ project settles.
 - In-memory clipboard history state with capture off by default.
 - Clipboard retention limits and clear behavior in daemon state.
 - Hotkey config validation and platform status reporting.
-- Windows UI hotkey bridge that shows and focuses the local palette process.
 - Foreground Windows hotkey registration through `freepalette-daemon run`.
 - UI shell execution refusal with no shell confirmation flow yet.
-- Windows tray lifecycle for showing, hiding, reloading config, and quitting the
-  UI process.
-- Windows launch-at-sign-in toggle through a per-user Startup folder shortcut.
-- Checked-in palette-and-brush icon assets and shared UI/tray icon rendering.
+- Windows hotkey, tray, and launch-at-sign-in helper code from the earlier
+  native UI path. These helpers are not wired into the current Tauri binary.
+- Checked-in palette-and-brush icon assets.
 - Windows daily-use and UI smoke-test documentation.
-- Software-rendered egui UI for the current Windows desktop path.
+- Tauri UI shell for the current Windows desktop path.
 
 ## Next
 
 - Improve CLI and provider documentation as behavior changes.
+- Decide how the Tauri UI should handle global hotkey, tray, and
+  launch-at-sign-in behavior.
 - Add explicit user controls before any real system clipboard capture.
 - Add a CLI command for app index refresh if a long-running process needs it.
 - Keep shell execution blocked in UI until a confirmation flow exists.

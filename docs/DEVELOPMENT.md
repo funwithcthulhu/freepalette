@@ -27,8 +27,10 @@ cargo test --workspace --all-features
 - `freepalette-daemon`: shared local daemon state and Windows foreground
   hotkey diagnostics. It is not a background IPC process yet.
 - `freepalette-cli`: command parsing and terminal output.
-- `freepalette-ui`: minimal egui palette state, window, Windows hotkey bridge,
-  Windows tray lifecycle, and Windows launch-at-sign-in setup.
+- `freepalette-ui`: minimal Tauri palette shell and shared palette state. The
+  crate still contains Windows hotkey, tray, and launch-at-sign-in helper
+  modules, but the current Tauri binary does not wire them into the window
+  lifecycle.
 - `freepalette-plugin-api`: provider/action data types.
 
 ## Adding A Provider
@@ -53,7 +55,7 @@ the local app index.
 
 The current UI smoke-test checklist lives in
 [UI_SMOKE_TEST.md](UI_SMOKE_TEST.md). Use it before release candidates and after
-changes to window lifecycle, hotkey, tray, or launch-at-sign-in behavior.
+changes to the Tauri window or palette command bridge.
 
 ## Documentation
 

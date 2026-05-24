@@ -34,20 +34,17 @@ features = [
     "derive",
 ]
 
-[workspace.dependencies.eframe]
-version = "0.34.2"
-default-features = false
-features = [
-    "default_fonts",
-    "glow",
-    "x11",
-]
-
 [workspace.dependencies.serde]
 version = "1.0"
 features = [
     "derive",
 ]
+
+[workspace.dependencies.tauri]
+version = "2.11.2"
+
+[workspace.dependencies.tauri-build]
+version = "2.6.2"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
