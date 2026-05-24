@@ -1,11 +1,10 @@
 # Global Hotkeys
 
-FreePalette can register one configured global hotkey on Windows.
+FreePalette can validate one configured global hotkey and can register it in a
+foreground Windows diagnostic process.
 
-The UI process owns the useful path today: when the hotkey is enabled,
-`freepalette-ui` registers it and uses it to show and focus the local palette
-process. The daemon crate also has a foreground diagnostic listener, but that
-path only logs presses.
+The current Tauri UI does not register a global hotkey. The daemon crate has a
+foreground diagnostic listener, but that path only logs presses.
 
 ## Config Shape
 
@@ -30,22 +29,11 @@ Supported keys are intentionally narrow for now:
 At least one modifier is required. FreePalette should avoid broad keyboard
 capture and should only respond to a specific launcher binding.
 
-## Windows UI Path
+## Tauri UI Path
 
-The UI path uses the `global-hotkey` crate from the egui process. This keeps raw
-Win32 calls out of the repo while the workspace keeps `unsafe_code` forbidden.
-
-Run it with an enabled hotkey config:
-
-```powershell
-cargo run -p freepalette-ui
-```
-
-Pressing the configured binding shows and focuses that same UI process. Escape
-hides the palette while the hotkey bridge or tray lifecycle is active.
-
-On Windows, the UI also creates a tray icon when tray setup succeeds. The tray
-can show the palette even when the hotkey is disabled or unavailable.
+The current Tauri UI does not wire global hotkey registration into the running
+window. Escape closes the current window. Reintroducing a UI-owned hotkey should
+also define how the window is shown, hidden, and shut down.
 
 ## Windows Daemon Diagnostic Path
 
@@ -64,8 +52,9 @@ does not open or focus the UI.
 
 ## Platform Limits
 
-- Windows: UI registration exists through `freepalette-ui`; foreground
-  diagnostic registration exists through `freepalette-daemon run`.
+- Windows: foreground diagnostic registration exists through
+  `freepalette-daemon run`; UI registration is not wired into the current Tauri
+  shell.
 - macOS: not implemented.
 - Linux: not implemented.
 

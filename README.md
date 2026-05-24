@@ -10,7 +10,7 @@ Ulauncher, Apple Spotlight, or any other referenced tool.
 ## Status
 
 This is not a complete desktop launcher yet. The current repo has a working Rust
-core, a CLI, Windows Start Menu app indexing, a small egui UI crate, and early
+core, a CLI, Windows Start Menu app indexing, a minimal Tauri UI shell, and early
 daemon/plugin-facing crates.
 
 ## What Works
@@ -24,23 +24,17 @@ daemon/plugin-facing crates.
 - Explicit top-result execution with `run`.
 - TOML config loading from an explicit path or the platform default location.
 - Fuzzy search plus a small ranking model.
-- A minimal desktop UI in `freepalette-ui`.
+- A minimal Tauri desktop UI in `freepalette-ui`.
 - Clipboard provider backed by explicit in-memory daemon state. System clipboard
   capture and persistence are not implemented.
 - Hotkey config validation in daemon state.
-- Windows global hotkey registration in `freepalette-ui` when the hotkey is
-  enabled. The hotkey shows and focuses the local palette process.
-- Windows tray integration in `freepalette-ui`, using a checked-in
-  palette-and-brush icon asset. The tray can show, hide, reload config, toggle
-  launch at sign-in, and quit.
-- Windows launch-at-sign-in setup from the tray menu. This writes or removes a
-  per-user Startup folder shortcut for the current `freepalette-ui` executable.
 - Foreground Windows hotkey registration with `freepalette-daemon run` for
   diagnostics. That path logs presses but does not open the UI.
 
 ## What Does Not Work Yet
 
 - A long-running IPC daemon.
+- Tauri UI hotkey, tray, or launch-at-sign-in wiring.
 - macOS or Linux global hotkey registration.
 - macOS or Linux tray integration or autostart setup.
 - Clipboard capture or persistence.
@@ -114,15 +108,8 @@ ctrl = true
 alt = true
 ```
 
-The UI validates this shape through daemon state. On Windows, `freepalette-ui`
-registers the binding when the hotkey is enabled. Escape hides the window
-instead of exiting so the same process can be shown again by the hotkey or tray.
-
-On Windows, `freepalette-ui` also creates a tray icon using the same
-palette-and-brush mark as the app icon asset. The tray menu can show or hide the
-palette, reload config, enable or disable launch at sign-in, and quit the
-process. Launch at sign-in is implemented as a per-user shortcut in the Windows
-Startup folder pointing at the current `freepalette-ui` executable.
+The Tauri UI does not register this hotkey yet. Escape closes the current UI
+window because there is no active tray or hotkey lifecycle in the Tauri shell.
 
 The daemon can also register the same binding in a foreground diagnostic mode:
 
@@ -160,9 +147,9 @@ a clearly labeled Notepad fallback only when there are no configured apps.
   policy. It is not an IPC daemon yet.
 - `freepalette-plugin-api`: public provider/action data types used by built-in
   providers and future plugin protocol work.
-- `freepalette-ui`: minimal egui palette with Windows hotkey registration. It
-  includes Windows tray and launch-at-sign-in controls. It is early and has no
-  daemon IPC.
+- `freepalette-ui`: minimal Tauri palette shell with a static frontend over the
+  Rust palette state. It is early and has no daemon IPC, tray, global hotkey, or
+  launch-at-sign-in wiring.
 
 ## Security-Sensitive Areas
 
