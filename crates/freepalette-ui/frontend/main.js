@@ -26,14 +26,7 @@ searchInput.addEventListener("keydown", async (event) => {
   } else if (event.key === "Enter") {
     event.preventDefault();
     const response = await invoke("execute_selected");
-    palette = response.palette;
-    render();
-    if (
-      response.execution.state === "completed" &&
-      response.execution.hide_palette
-    ) {
-      await invoke("close_palette_window");
-    }
+    await handleExecutionResponse(response);
   } else if (event.key === "Escape") {
     event.preventDefault();
     await invoke("close_palette_window");
@@ -60,6 +53,33 @@ async function callPalette(command, args = {}) {
     statusLine.textContent = String(error);
     statusLine.className = "status error";
   }
+}
+
+async function handleExecutionResponse(response) {
+  palette = response.palette;
+  render();
+
+  if (response.execution.state === "needs-shell-confirmation") {
+    const confirmed = window.confirm(shellConfirmationMessage(response.execution.command));
+    if (confirmed) {
+      const confirmedResponse = await invoke("execute_confirmed_shell");
+      await handleExecutionResponse(confirmedResponse);
+    } else {
+      await callPalette("cancel_shell_confirmation");
+    }
+    return;
+  }
+
+  if (
+    response.execution.state === "completed" &&
+    response.execution.hide_palette
+  ) {
+    await invoke("close_palette_window");
+  }
+}
+
+function shellConfirmationMessage(command) {
+  return `Run this shell command?\n\n${command}`;
 }
 
 function render() {
@@ -143,7 +163,7 @@ function describeAction(action) {
     return `open ${action.path}`;
   }
   if (action.type === "run-shell") {
-    return `shell command blocked: ${action.command}`;
+    return `shell command requires confirmation: ${action.command}`;
   }
   if (action.type === "copy-text") {
     return "copy text";

@@ -26,6 +26,7 @@ pub struct PaletteState {
     selected: Option<usize>,
     status: PaletteStatus,
     daemon: DaemonState,
+    pending_shell_confirmation: Option<PendingShellConfirmation>,
 }
 
 impl PaletteState {
@@ -44,6 +45,7 @@ impl PaletteState {
             selected: None,
             status: PaletteStatus::Ready,
             daemon,
+            pending_shell_confirmation: None,
         }
     }
 
@@ -76,6 +78,7 @@ impl PaletteState {
     }
 
     pub fn set_query(&mut self, query: impl Into<String>) {
+        self.pending_shell_confirmation = None;
         self.query = query.into();
         self.refresh_results();
     }
@@ -85,6 +88,7 @@ impl PaletteState {
         self.results.clear();
         self.selected = None;
         self.status = PaletteStatus::Ready;
+        self.pending_shell_confirmation = None;
     }
 
     pub fn move_selection(&mut self, direction: SelectionDirection) {
@@ -92,6 +96,7 @@ impl PaletteState {
             return;
         };
 
+        self.pending_shell_confirmation = None;
         let next = match direction {
             SelectionDirection::Previous => current.saturating_sub(1),
             SelectionDirection::Next => (current + 1).min(self.results.len().saturating_sub(1)),
@@ -112,14 +117,18 @@ impl PaletteState {
             return PaletteExecution::SelectedUnavailable;
         };
 
-        if matches!(&ranked.result.action, Action::RunShell { .. }) {
-            self.status = PaletteStatus::Error(
-                "Shell commands cannot run from the UI yet; use the CLI with --allow-shell"
-                    .to_string(),
-            );
-            return PaletteExecution::Blocked;
+        if let Action::RunShell { command } = &ranked.result.action {
+            self.pending_shell_confirmation = Some(PendingShellConfirmation {
+                result_id: ranked.result.id.clone(),
+                command: command.clone(),
+            });
+            self.status = PaletteStatus::Info("Confirm shell command before running".to_string());
+            return PaletteExecution::NeedsShellConfirmation {
+                command: command.clone(),
+            };
         }
 
+        self.pending_shell_confirmation = None;
         let hide_palette = action_hides_palette_after_success(&ranked.result.action);
         match self
             .daemon
@@ -136,7 +145,67 @@ impl PaletteState {
         }
     }
 
+    pub fn execute_confirmed_shell(&mut self) -> PaletteExecution {
+        let Some(index) = self.selected else {
+            self.pending_shell_confirmation = None;
+            self.status = PaletteStatus::Info("No result selected".to_string());
+            return PaletteExecution::NoSelection;
+        };
+
+        let Some(ranked) = self.results.get(index) else {
+            self.pending_shell_confirmation = None;
+            self.status = PaletteStatus::Error("Selected result is unavailable".to_string());
+            self.selected = None;
+            return PaletteExecution::SelectedUnavailable;
+        };
+
+        let Action::RunShell { command } = &ranked.result.action else {
+            self.pending_shell_confirmation = None;
+            self.status =
+                PaletteStatus::Error("Selected result is not a shell command".to_string());
+            return PaletteExecution::SelectedUnavailable;
+        };
+
+        let Some(pending) = &self.pending_shell_confirmation else {
+            self.status = PaletteStatus::Error(
+                "Shell confirmation expired; select the command again".to_string(),
+            );
+            return PaletteExecution::Blocked;
+        };
+
+        if pending.result_id != ranked.result.id || pending.command != *command {
+            self.pending_shell_confirmation = None;
+            self.status = PaletteStatus::Error(
+                "Shell confirmation no longer matches the selected command".to_string(),
+            );
+            return PaletteExecution::Blocked;
+        }
+
+        self.pending_shell_confirmation = None;
+        match self
+            .daemon
+            .execute_result(&ranked.result, ActionExecutionPolicy::AllowShellCommands)
+        {
+            Ok(outcome) => {
+                self.status = PaletteStatus::Info(outcome.message);
+                PaletteExecution::Completed {
+                    hide_palette: false,
+                }
+            }
+            Err(error) => {
+                self.status = PaletteStatus::Error(error.to_string());
+                PaletteExecution::Failed
+            }
+        }
+    }
+
+    pub fn cancel_shell_confirmation(&mut self) {
+        self.pending_shell_confirmation = None;
+        self.status = PaletteStatus::Info("Shell command was not run".to_string());
+    }
+
     pub fn reload_config(&mut self) {
+        self.pending_shell_confirmation = None;
         match self.daemon.reload_config() {
             Ok(()) => {
                 let query = self.query.clone();
@@ -154,6 +223,7 @@ impl PaletteState {
             self.results.clear();
             self.selected = None;
             self.status = PaletteStatus::Ready;
+            self.pending_shell_confirmation = None;
             return;
         }
 
@@ -172,17 +242,18 @@ impl PaletteState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PaletteExecution {
     NoSelection,
     SelectedUnavailable,
     Blocked,
+    NeedsShellConfirmation { command: String },
     Completed { hide_palette: bool },
     Failed,
 }
 
 impl PaletteExecution {
-    pub fn should_hide_palette(self) -> bool {
+    pub fn should_hide_palette(&self) -> bool {
         matches!(self, Self::Completed { hide_palette: true })
     }
 }
@@ -211,6 +282,12 @@ impl PaletteStatus {
     pub fn is_error(&self) -> bool {
         matches!(self, Self::Error(_))
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PendingShellConfirmation {
+    result_id: String,
+    command: String,
 }
 
 fn action_hides_palette_after_success(action: &Action) -> bool {
@@ -305,19 +382,109 @@ mod tests {
     }
 
     #[test]
-    fn execute_selected_blocks_shell_commands() {
+    fn execute_selected_requests_shell_confirmation() {
         let mut state = PaletteState::from_config(Config::default())
             .expect("default providers should register");
 
         state.set_query("> echo hello");
         let execution = state.execute_selected();
 
+        assert_eq!(
+            execution,
+            PaletteExecution::NeedsShellConfirmation {
+                command: "echo hello".to_string()
+            }
+        );
+        assert_eq!(
+            state.status(),
+            &PaletteStatus::Info("Confirm shell command before running".to_string())
+        );
+    }
+
+    #[test]
+    fn confirmed_shell_command_requires_pending_confirmation() {
+        let mut state = PaletteState::from_config(Config::default())
+            .expect("default providers should register");
+
+        state.set_query("> echo hello");
+        let execution = state.execute_confirmed_shell();
+
         assert_eq!(execution, PaletteExecution::Blocked);
         assert_eq!(
             state.status(),
             &PaletteStatus::Error(
-                "Shell commands cannot run from the UI yet; use the CLI with --allow-shell"
-                    .to_string()
+                "Shell confirmation expired; select the command again".to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn confirmed_shell_command_runs_after_confirmation() {
+        let mut state = PaletteState::from_config(Config::default())
+            .expect("default providers should register");
+
+        state.set_query("> echo freepalette-shell-confirmed");
+        let confirmation = state.execute_selected();
+        let execution = state.execute_confirmed_shell();
+
+        assert_eq!(
+            confirmation,
+            PaletteExecution::NeedsShellConfirmation {
+                command: "echo freepalette-shell-confirmed".to_string()
+            }
+        );
+        assert_eq!(
+            execution,
+            PaletteExecution::Completed {
+                hide_palette: false
+            }
+        );
+        assert_eq!(
+            state.status(),
+            &PaletteStatus::Info("shell exited with 0: freepalette-shell-confirmed".to_string())
+        );
+    }
+
+    #[test]
+    fn changing_query_clears_shell_confirmation() {
+        let mut state = PaletteState::from_config(Config::default())
+            .expect("default providers should register");
+
+        state.set_query("> echo hello");
+        assert!(matches!(
+            state.execute_selected(),
+            PaletteExecution::NeedsShellConfirmation { .. }
+        ));
+
+        state.set_query("calc 2+2");
+        let execution = state.execute_confirmed_shell();
+
+        assert_eq!(execution, PaletteExecution::SelectedUnavailable);
+        assert_eq!(
+            state.status(),
+            &PaletteStatus::Error("Selected result is not a shell command".to_string())
+        );
+    }
+
+    #[test]
+    fn cancel_shell_confirmation_keeps_command_unrun() {
+        let mut state = PaletteState::from_config(Config::default())
+            .expect("default providers should register");
+
+        state.set_query("> echo hello");
+        let confirmation = state.execute_selected();
+        state.cancel_shell_confirmation();
+        let execution = state.execute_confirmed_shell();
+
+        assert!(matches!(
+            confirmation,
+            PaletteExecution::NeedsShellConfirmation { .. }
+        ));
+        assert_eq!(execution, PaletteExecution::Blocked);
+        assert_eq!(
+            state.status(),
+            &PaletteStatus::Error(
+                "Shell confirmation expired; select the command again".to_string()
             )
         );
     }

@@ -94,6 +94,7 @@ enum ExecutionState {
     NoSelection,
     SelectedUnavailable,
     Blocked,
+    NeedsShellConfirmation { command: String },
     Completed { hide_palette: bool },
     Failed,
 }
@@ -134,6 +135,8 @@ fn main() -> anyhow::Result<()> {
             search_palette,
             move_selection,
             execute_selected,
+            execute_confirmed_shell,
+            cancel_shell_confirmation,
             reload_config,
             reset_palette,
             close_palette_window
@@ -186,6 +189,23 @@ fn execute_selected(state: State<'_, AppState>) -> Result<ExecutionSnapshot, Str
         execution,
         palette: snapshot(&palette),
     })
+}
+
+#[tauri::command]
+fn execute_confirmed_shell(state: State<'_, AppState>) -> Result<ExecutionSnapshot, String> {
+    let mut palette = lock_palette(&state)?;
+    let execution = execution_state(palette.execute_confirmed_shell());
+    Ok(ExecutionSnapshot {
+        execution,
+        palette: snapshot(&palette),
+    })
+}
+
+#[tauri::command]
+fn cancel_shell_confirmation(state: State<'_, AppState>) -> Result<PaletteSnapshot, String> {
+    let mut palette = lock_palette(&state)?;
+    palette.cancel_shell_confirmation();
+    Ok(snapshot(&palette))
 }
 
 #[tauri::command]
@@ -251,6 +271,9 @@ fn execution_state(execution: PaletteExecution) -> ExecutionState {
         PaletteExecution::NoSelection => ExecutionState::NoSelection,
         PaletteExecution::SelectedUnavailable => ExecutionState::SelectedUnavailable,
         PaletteExecution::Blocked => ExecutionState::Blocked,
+        PaletteExecution::NeedsShellConfirmation { command } => {
+            ExecutionState::NeedsShellConfirmation { command }
+        }
         PaletteExecution::Completed { hide_palette } => ExecutionState::Completed { hide_palette },
         PaletteExecution::Failed => ExecutionState::Failed,
     }

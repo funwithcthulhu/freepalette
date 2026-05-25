@@ -19,8 +19,9 @@ Shell commands must never execute automatically from a search query. Execution
 requires explicit user action.
 
 The shared daemon state enforces a shell execution policy. The CLI requires
-`--allow-shell` before executing a shell action, and the minimal UI blocks shell
-execution until a deliberate confirmation flow exists.
+`--allow-shell` before executing a shell action. The minimal UI asks for a
+deliberate confirmation before it passes a shell action to the daemon with shell
+execution allowed.
 
 The current `freepalette-daemon` crate is local service state, not an IPC
 server. Future IPC, UI activation from hotkeys, and plugin execution work should

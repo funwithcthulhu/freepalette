@@ -11,7 +11,7 @@ The MVP does not include:
 - full replacement of mature launchers immediately
 - plugin execution before the security model is documented
 - automatic shell command execution without explicit user action
-- shell command execution from the minimal UI before confirmation UI exists
+- automatic shell command execution from the UI without a confirmation step
 - app indexing parity across every desktop platform in the first Windows pass
 - daemon IPC before message shape, permissions, and failure behavior are
   documented

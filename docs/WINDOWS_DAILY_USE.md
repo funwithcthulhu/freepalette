@@ -11,7 +11,7 @@ On Windows, `freepalette-ui` can:
 - search built-in providers;
 - move selection with the keyboard;
 - execute selected non-shell actions;
-- block shell actions from the UI;
+- ask for confirmation before running a selected shell action;
 - register the configured global hotkey when enabled;
 - create a tray icon;
 - hide and show the palette from the tray or hotkey;
@@ -84,13 +84,14 @@ creates or removes a per-user Startup folder shortcut for the running
 ## Shell Commands
 
 Search can display shell command results for queries beginning with `>`, but the
-UI does not run shell commands. Use the CLI with `--allow-shell` when you intend
-to execute a shell action.
+UI asks for confirmation before running the selected shell command. Search alone
+does not execute shell commands. The CLI still requires `--allow-shell` when you
+intend to execute a shell action there.
 
 ## Current Limits
 
 - No installer.
-- No shell-confirmation UI.
+- No polished shell-confirmation review surface.
 - No background IPC daemon.
 - No macOS or Linux tray/autostart path.
 - No system clipboard capture.
