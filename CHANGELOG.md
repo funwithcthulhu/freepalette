@@ -8,6 +8,15 @@ the core model settles.
 
 ## Unreleased
 
+## 0.6.0 - 2026-05-25
+
+- Bumped workspace crate versions to `0.6.0`.
+- Switched the minimal desktop UI from the earlier egui prototype to the Tauri
+  shell.
+- Wired Windows UI lifecycle support into the Tauri app: configured hotkey,
+  tray menu, and launch-at-sign-in helpers.
+- Added a basic shell-confirmation prompt before the Tauri UI runs a selected
+  shell action.
 - Added local Windows NSIS installer configuration and documentation for the
   Tauri UI. The installer is unsigned and not published as an official release
   artifact yet.

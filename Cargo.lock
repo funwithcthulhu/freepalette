@@ -931,7 +931,7 @@ dependencies = [
 
 [[package]]
 name = "freepalette-cli"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -944,7 +944,7 @@ dependencies = [
 
 [[package]]
 name = "freepalette-core"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "directories",
  "freepalette-plugin-api",
@@ -958,7 +958,7 @@ dependencies = [
 
 [[package]]
 name = "freepalette-daemon"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "freepalette-core",
@@ -971,7 +971,7 @@ dependencies = [
 
 [[package]]
 name = "freepalette-plugin-api"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "serde",
  "thiserror 2.0.18",
@@ -979,7 +979,7 @@ dependencies = [
 
 [[package]]
 name = "freepalette-ui"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "freepalette-core",
