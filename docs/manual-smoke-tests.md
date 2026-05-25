@@ -163,4 +163,27 @@ Expected behavior:
 
 ## Last Manually Checked
 
-No full manual checklist run is recorded in this file yet.
+Partial Windows check on 2026-05-25:
+
+- `config-path` printed a Windows config path ending in `freepalette.toml`.
+- `apps list` reported 131 apps, including real entries from two Windows Start
+  Menu roots and the known Notepad entry.
+- `search "calc 2+2"` returned `2+2 = 4`.
+- Shell search preview for a marker-file command did not create the marker file.
+- `run "> echo hello"` refused without `--allow-shell`.
+- `run "> echo hello" --allow-shell` printed `hello` after explicit execution.
+- `cargo build -p freepalette-ui` passed.
+- Running `target\debug\freepalette-ui.exe` opened a `freepalette` window and
+  stayed alive.
+- With a temporary config enabling `Ctrl+Alt+Space`, the UI logged
+  `UI global hotkey registered`.
+- `cargo tauri build --bundles nsis --ci` produced
+  `target\release\bundle\nsis\freepalette_0.6.0_x64-setup.exe`.
+
+Not checked in that pass:
+
+- Typing queries into the live Tauri window and confirming shell commands from
+  the UI.
+- Tray menu show, hide, reload config, launch-at-sign-in, and quit actions.
+- Pressing the registered global hotkey.
+- Running the unsigned installer and launching the installed app.
