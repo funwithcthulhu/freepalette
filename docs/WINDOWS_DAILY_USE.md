@@ -1,7 +1,8 @@
 # Windows Daily Use
 
 This page describes the current Windows path for running FreePalette as a local
-desktop utility. It is not an installer or packaging guide.
+desktop utility. For installer commands, see
+[WINDOWS_INSTALLER.md](WINDOWS_INSTALLER.md).
 
 ## Current State
 
@@ -16,9 +17,10 @@ On Windows, `freepalette-ui` can:
 - create a tray icon;
 - hide and show the palette from the tray or hotkey;
 - enable or disable launch at sign-in from the tray menu.
+- build a local unsigned NSIS installer through Tauri.
 
-The UI still runs from a Cargo-built executable. There is no packaged Windows
-installer yet.
+The installer path is basic packaging groundwork. It is not signed and is not
+published as an official release artifact yet.
 
 ## Build
 
@@ -45,6 +47,17 @@ Or run the built executable:
 ```powershell
 target\release\freepalette-ui.exe
 ```
+
+## Installer
+
+The Tauri config can build a local NSIS installer:
+
+```powershell
+cd crates\freepalette-ui
+cargo tauri build --bundles nsis --ci
+```
+
+The installer is written under `target\release\bundle\nsis`. It is unsigned.
 
 ## Hotkey
 
@@ -90,7 +103,8 @@ intend to execute a shell action there.
 
 ## Current Limits
 
-- No installer.
+- No signed or published installer.
+- No auto-update.
 - No polished shell-confirmation review surface.
 - No background IPC daemon.
 - No macOS or Linux tray/autostart path.

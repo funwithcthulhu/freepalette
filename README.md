@@ -32,6 +32,7 @@ daemon/plugin-facing crates.
 - Hotkey config validation in daemon state.
 - Foreground Windows hotkey registration with `freepalette-daemon run` for
   diagnostics. That path logs presses but does not open the UI.
+- Local Windows NSIS installer builds through Tauri.
 
 ## What Does Not Work Yet
 
@@ -41,7 +42,8 @@ daemon/plugin-facing crates.
 - Clipboard capture or persistence.
 - External plugin execution.
 - macOS or Linux app indexing.
-- Windows installer packaging.
+- Signed or published Windows installer artifacts.
+- Auto-update.
 - A polished shell-confirmation UI in the desktop app.
 - A polished desktop launcher experience.
 
@@ -153,8 +155,8 @@ a clearly labeled Notepad fallback only when there are no configured apps.
   providers and future plugin protocol work.
 - `freepalette-ui`: minimal Tauri palette shell with a static frontend over the
   Rust palette state. On Windows it owns the configured hotkey, tray icon, and
-  launch-at-sign-in tray actions. It is early and has no daemon IPC, installer,
-  or polished shell-confirmation UI.
+  launch-at-sign-in tray actions. It is early and has no daemon IPC,
+  auto-update, signed installer artifact, or polished shell-confirmation UI.
 
 ## Security-Sensitive Areas
 
@@ -177,6 +179,7 @@ with shell execution allowed. External plugin execution is not implemented.
 - [Development](docs/DEVELOPMENT.md)
 - [Hotkeys](docs/HOTKEYS.md)
 - [Windows daily use](docs/WINDOWS_DAILY_USE.md)
+- [Windows installer](docs/WINDOWS_INSTALLER.md)
 - [UI smoke test checklist](docs/UI_SMOKE_TEST.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Non-goals](docs/NON_GOALS.md)
