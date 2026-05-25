@@ -12,11 +12,11 @@
       {
         "label": "main",
         "title": "freepalette",
-        "width": 720,
-        "height": 420,
-        "minWidth": 480,
-        "minHeight": 280,
-        "resizable": true
+        "width": 680,
+        "height": 300,
+        "minWidth": 520,
+        "minHeight": 180,
+        "resizable": false
       }
     ]
   },
