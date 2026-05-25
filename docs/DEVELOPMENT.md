@@ -28,9 +28,9 @@ cargo test --workspace --all-features
   hotkey diagnostics. It is not a background IPC process yet.
 - `freepalette-cli`: command parsing and terminal output.
 - `freepalette-ui`: minimal Tauri palette shell and shared palette state. The
-  crate still contains Windows hotkey, tray, and launch-at-sign-in helper
-  modules, but the current Tauri binary does not wire them into the window
-  lifecycle.
+  Windows hotkey, tray, and launch-at-sign-in helpers are wired into the Tauri
+  binary on Windows. Shell actions remain blocked because there is no
+  confirmation UI.
 - `freepalette-plugin-api`: provider/action data types.
 
 ## Adding A Provider

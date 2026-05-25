@@ -1,4 +1,5 @@
 const invoke = window.__TAURI__.core.invoke;
+const listen = window.__TAURI__.event.listen;
 
 const searchInput = document.querySelector("#search");
 const resultsList = document.querySelector("#results");
@@ -27,6 +28,12 @@ searchInput.addEventListener("keydown", async (event) => {
     const response = await invoke("execute_selected");
     palette = response.palette;
     render();
+    if (
+      response.execution.state === "completed" &&
+      response.execution.hide_palette
+    ) {
+      await invoke("close_palette_window");
+    }
   } else if (event.key === "Escape") {
     event.preventDefault();
     await invoke("close_palette_window");
@@ -34,8 +41,15 @@ searchInput.addEventListener("keydown", async (event) => {
 });
 
 document.addEventListener("DOMContentLoaded", async () => {
+  await listen("palette-updated", async () => {
+    await callPalette("palette_snapshot");
+  });
+  await listen("palette-shown", async () => {
+    await callPalette("palette_snapshot");
+    focusSearch();
+  });
   await callPalette("palette_snapshot");
-  searchInput.focus();
+  focusSearch();
 });
 
 async function callPalette(command, args = {}) {
@@ -52,6 +66,11 @@ function render() {
   searchInput.value = palette.query;
   resultsList.replaceChildren(...resultElements(palette.results));
   renderStatus(palette.status);
+}
+
+function focusSearch() {
+  searchInput.focus();
+  searchInput.select();
 }
 
 function resultElements(results) {

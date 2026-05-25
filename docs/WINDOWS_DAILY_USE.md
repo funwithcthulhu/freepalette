@@ -12,7 +12,10 @@ On Windows, `freepalette-ui` can:
 - move selection with the keyboard;
 - execute selected non-shell actions;
 - block shell actions from the UI;
-- close the window with Escape.
+- register the configured global hotkey when enabled;
+- create a tray icon;
+- hide and show the palette from the tray or hotkey;
+- enable or disable launch at sign-in from the tray menu.
 
 The UI still runs from a Cargo-built executable. There is no packaged Windows
 installer yet.
@@ -45,20 +48,38 @@ target\release\freepalette-ui.exe
 
 ## Hotkey
 
-The current Tauri UI does not register a global hotkey. Hotkey config validation
-and the foreground daemon diagnostic path are documented in
+The hotkey is disabled by default. Enable it in the config:
+
+```toml
+[hotkey]
+enabled = true
+key = "Space"
+ctrl = true
+alt = true
+```
+
+The Tauri UI reads this config at startup. If registration succeeds, pressing
+the binding shows and focuses the palette. The foreground daemon diagnostic
+path is still available for testing the binding without the UI; see
 [HOTKEYS.md](HOTKEYS.md).
 
 ## Tray
 
-The current Tauri UI does not create a tray icon. The repository still has
-Windows tray helper code from the earlier native UI path, but it is not wired
-into the Tauri window lifecycle.
+The Tauri UI creates a Windows tray icon when tray creation succeeds. The tray
+menu currently exposes:
+
+- Show freepalette
+- Hide freepalette
+- Reload config
+- Enable launch at sign-in
+- Disable launch at sign-in
+- Quit freepalette
 
 ## Launch At Sign-In
 
-The current Tauri UI does not expose launch-at-sign-in controls. The repository
-has a Windows Startup folder helper, but the Tauri shell does not call it yet.
+Launch at sign-in is controlled from the tray menu. The current implementation
+creates or removes a per-user Startup folder shortcut for the running
+`freepalette-ui` executable. It is not a packaged installer feature.
 
 ## Shell Commands
 
@@ -69,9 +90,7 @@ to execute a shell action.
 ## Current Limits
 
 - No installer.
-- No global hotkey in the current Tauri UI.
-- No tray icon in the current Tauri UI.
-- No launch-at-sign-in control in the current Tauri UI.
+- No shell-confirmation UI.
 - No background IPC daemon.
 - No macOS or Linux tray/autostart path.
 - No system clipboard capture.

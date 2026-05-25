@@ -1,10 +1,8 @@
 # Global Hotkeys
 
-FreePalette can validate one configured global hotkey and can register it in a
-foreground Windows diagnostic process.
-
-The current Tauri UI does not register a global hotkey. The daemon crate has a
-foreground diagnostic listener, but that path only logs presses.
+FreePalette can validate one configured global hotkey. On Windows, the Tauri UI
+can register that binding at startup, and the daemon crate can register it in a
+foreground diagnostic process.
 
 ## Config Shape
 
@@ -31,9 +29,13 @@ capture and should only respond to a specific launcher binding.
 
 ## Tauri UI Path
 
-The current Tauri UI does not wire global hotkey registration into the running
-window. Escape closes the current window. Reintroducing a UI-owned hotkey should
-also define how the window is shown, hidden, and shut down.
+On Windows, the Tauri UI reads the configured binding at startup. If the hotkey
+is enabled and registration succeeds, pressing the binding shows, unminimizes,
+and focuses the palette window.
+
+When the UI has an active hotkey or tray lifecycle, Escape and the window close
+button hide the palette instead of exiting the process. Use the tray menu's
+Quit item to exit the background UI process.
 
 ## Windows Daemon Diagnostic Path
 
@@ -53,8 +55,8 @@ does not open or focus the UI.
 ## Platform Limits
 
 - Windows: foreground diagnostic registration exists through
-  `freepalette-daemon run`; UI registration is not wired into the current Tauri
-  shell.
+  `freepalette-daemon run`; the Tauri UI can also register the configured
+  binding at startup.
 - macOS: not implemented.
 - Linux: not implemented.
 

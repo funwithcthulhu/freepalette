@@ -48,8 +48,8 @@ project settles.
 - Hotkey config validation and platform status reporting.
 - Foreground Windows hotkey registration through `freepalette-daemon run`.
 - UI shell execution refusal with no shell confirmation flow yet.
-- Windows hotkey, tray, and launch-at-sign-in helper code from the earlier
-  native UI path. These helpers are not wired into the current Tauri binary.
+- Windows hotkey, tray, and launch-at-sign-in helper code wired into the current
+  Tauri binary.
 - Checked-in palette-and-brush icon assets.
 - Windows daily-use and UI smoke-test documentation.
 - Tauri UI shell for the current Windows desktop path.
@@ -57,8 +57,7 @@ project settles.
 ## Next
 
 - Improve CLI and provider documentation as behavior changes.
-- Decide how the Tauri UI should handle global hotkey, tray, and
-  launch-at-sign-in behavior.
+- Add release packaging notes and installer work for Windows.
 - Add explicit user controls before any real system clipboard capture.
 - Add a CLI command for app index refresh if a long-running process needs it.
 - Keep shell execution blocked in UI until a confirmation flow exists.
