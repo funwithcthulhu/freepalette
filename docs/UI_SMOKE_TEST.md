@@ -33,14 +33,19 @@ Check the palette:
 
 Check lifecycle behavior:
 
-- Escape closes the window.
-- Restarting the UI opens a fresh window.
+- On Windows, the tray icon appears when tray creation succeeds.
+- Escape hides the window when the tray or hotkey lifecycle is active.
+- Left-clicking the tray icon shows the palette.
+- The tray menu can show, hide, reload config, and quit the UI.
+- The tray menu enables or disables launch at sign-in without panicking.
+- With an enabled Windows hotkey, pressing the configured binding shows and
+  focuses the palette.
 
 Current Tauri limits:
 
-- No global hotkey is wired into the UI.
-- No tray icon is wired into the UI.
-- No launch-at-sign-in control is wired into the UI.
+- No installer is implemented.
+- No shell-confirmation UI is implemented.
+- No macOS or Linux tray/autostart path is implemented.
 
 ## Notes
 

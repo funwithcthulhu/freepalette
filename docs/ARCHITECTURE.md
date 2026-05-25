@@ -67,9 +67,10 @@ HTML, CSS, and JavaScript. It invokes Rust commands in the same process to:
 - reset visible palette state.
 
 Shell actions are shown but blocked because there is no confirmation UI yet.
-Escape closes the current window. The Tauri shell does not currently wire the
-older Windows hotkey, tray, or launch-at-sign-in helper modules into the running
-binary.
+On Windows, the Tauri binary also owns the configured global hotkey, a tray
+icon, and launch-at-sign-in tray actions. If the tray or hotkey lifecycle is
+active, Escape and window close hide the palette instead of exiting the process.
+If no background lifecycle exists, Escape closes the window.
 
 There is no IPC daemon connection or finished desktop shell.
 
@@ -115,9 +116,9 @@ local machine.
 
 Clipboard capture and global hotkeys are disabled by default. The hotkey config
 is validated through daemon state and can be used by the foreground daemon
-diagnostic loop. The current Tauri UI does not register the hotkey. Clipboard
-config is parsed now so future capture work has a tested place to attach
-platform behavior.
+diagnostic loop. On Windows, the Tauri UI also reads the same hotkey config at
+startup and registers the binding when it is enabled. Clipboard config is parsed
+now so future capture work has a tested place to attach platform behavior.
 
 ## Ranking
 
@@ -155,10 +156,11 @@ are no configured apps.
   daemon code. System clipboard capture and persistence must follow
   [Clipboard Security Model](CLIPBOARD_SECURITY.md).
 - The daemon crate is not an IPC process.
-- Global hotkey registration exists only in the foreground Windows daemon
-  diagnostic path. The Tauri UI does not register a hotkey yet. See
+- Global hotkey registration in the Tauri UI is Windows-only and disabled by
+  default. The foreground daemon diagnostic path remains separate. See
   [Hotkeys](HOTKEYS.md).
-- Tray integration and launch-at-sign-in helpers exist in the UI crate, but the
-  current Tauri binary does not wire them into the window lifecycle.
+- Tray integration and launch-at-sign-in tray actions are Windows-only.
+- Installer packaging is not implemented.
+- The UI blocks shell actions and has no shell-confirmation flow yet.
 - External plugin execution is not implemented.
 - The UI is usable for smoke testing but is not a finished launcher.

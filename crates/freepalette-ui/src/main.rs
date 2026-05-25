@@ -1,19 +1,66 @@
-use std::sync::{Mutex, MutexGuard};
+use std::{
+    sync::{Mutex, MutexGuard},
+    time::Duration,
+};
 
 use freepalette_core::RankedResult;
-use freepalette_ui::{PaletteExecution, PaletteState, PaletteStatus, SelectionDirection};
+use freepalette_ui::{
+    PaletteExecution, PaletteState, PaletteStatus, SelectionDirection, TrayCommand, UiAutostart,
+    UiHotkeyBridge, UiTray,
+};
 use serde::Serialize;
-use tauri::{State, Window};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WebviewWindow, Window, WindowEvent};
+
+const MAIN_WINDOW_LABEL: &str = "main";
+const PALETTE_UPDATED_EVENT: &str = "palette-updated";
+const PALETTE_SHOWN_EVENT: &str = "palette-shown";
+const LIFECYCLE_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 struct AppState {
     palette: Mutex<PaletteState>,
+    close_policy: WindowClosePolicy,
 }
 
 impl AppState {
-    fn new() -> Result<Self, freepalette_ui::UiError> {
-        Ok(Self {
-            palette: Mutex::new(PaletteState::from_default_config()?),
-        })
+    fn new(palette: PaletteState, close_policy: WindowClosePolicy) -> Self {
+        Self {
+            palette: Mutex::new(palette),
+            close_policy,
+        }
+    }
+}
+
+struct UiLifecycle {
+    hotkey_bridge: UiHotkeyBridge,
+    tray: Option<UiTray>,
+}
+
+impl UiLifecycle {
+    fn new(hotkey_bridge: UiHotkeyBridge, tray: Option<UiTray>) -> Self {
+        Self {
+            hotkey_bridge,
+            tray,
+        }
+    }
+
+    fn is_active(&self) -> bool {
+        self.hotkey_bridge.is_active() || self.tray.as_ref().map(UiTray::is_active).unwrap_or(false)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WindowClosePolicy {
+    CloseProcess,
+    HideToBackground,
+}
+
+impl WindowClosePolicy {
+    fn from_lifecycle(hotkey_active: bool, tray_active: bool) -> Self {
+        if hotkey_active || tray_active {
+            Self::HideToBackground
+        } else {
+            Self::CloseProcess
+        }
     }
 }
 
@@ -54,8 +101,34 @@ enum ExecutionState {
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt().with_target(false).init();
 
-    tauri::Builder::default()
-        .manage(AppState::new()?)
+    let mut palette = PaletteState::from_default_config()?;
+    let hotkey_bridge = UiHotkeyBridge::from_state(palette.hotkey_state())?;
+    if let Some(label) = hotkey_bridge.label() {
+        tracing::info!(hotkey = %label, "UI global hotkey registered");
+    }
+
+    let tray = create_tray(&mut palette);
+    let tray_active = tray.as_ref().map(UiTray::is_active).unwrap_or(false);
+    let close_policy = WindowClosePolicy::from_lifecycle(hotkey_bridge.is_active(), tray_active);
+    let lifecycle = UiLifecycle::new(hotkey_bridge, tray);
+
+    let app = tauri::Builder::default()
+        .manage(AppState::new(palette, close_policy))
+        .on_window_event(|window, event| {
+            if window.label() != MAIN_WINDOW_LABEL {
+                return;
+            }
+
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                let state = window.state::<AppState>();
+                if state.close_policy == WindowClosePolicy::HideToBackground {
+                    api.prevent_close();
+                    if let Err(error) = hide_palette_window(window, &state) {
+                        tracing::warn!(%error, "failed to hide palette on close request");
+                    }
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             palette_snapshot,
             search_palette,
@@ -65,8 +138,18 @@ fn main() -> anyhow::Result<()> {
             reset_palette,
             close_palette_window
         ])
-        .run(tauri::generate_context!())
-        .map_err(|error| anyhow::anyhow!("failed to run freepalette UI: {error}"))?;
+        .build(tauri::generate_context!())
+        .map_err(|error| anyhow::anyhow!("failed to build freepalette UI: {error}"))?;
+
+    let mut tick_thread_started = false;
+    app.run(move |app_handle, event| match event {
+        RunEvent::Ready if lifecycle.is_active() && !tick_thread_started => {
+            start_lifecycle_tick_thread(app_handle.clone());
+            tick_thread_started = true;
+        }
+        RunEvent::MainEventsCleared => poll_lifecycle(app_handle, &lifecycle),
+        _ => {}
+    });
 
     Ok(())
 }
@@ -120,13 +203,14 @@ fn reset_palette(state: State<'_, AppState>) -> Result<PaletteSnapshot, String> 
 }
 
 #[tauri::command]
-fn close_palette_window(window: Window) -> Result<(), String> {
-    window.close().map_err(|error| error.to_string())
+fn close_palette_window(window: Window, state: State<'_, AppState>) -> Result<(), String> {
+    match state.close_policy {
+        WindowClosePolicy::CloseProcess => window.close().map_err(|error| error.to_string()),
+        WindowClosePolicy::HideToBackground => hide_palette_window(&window, &state),
+    }
 }
 
-fn lock_palette<'a>(
-    state: &'a State<'_, AppState>,
-) -> Result<MutexGuard<'a, PaletteState>, String> {
+fn lock_palette(state: &AppState) -> Result<MutexGuard<'_, PaletteState>, String> {
     state
         .palette
         .lock()
@@ -169,5 +253,245 @@ fn execution_state(execution: PaletteExecution) -> ExecutionState {
         PaletteExecution::Blocked => ExecutionState::Blocked,
         PaletteExecution::Completed { hide_palette } => ExecutionState::Completed { hide_palette },
         PaletteExecution::Failed => ExecutionState::Failed,
+    }
+}
+
+fn start_lifecycle_tick_thread(app_handle: AppHandle) {
+    // The hotkey and tray handles stay on Tauri's main event loop because the
+    // Windows tray types are not Send. This helper only wakes that loop.
+    let _tick_thread = std::thread::spawn(move || loop {
+        if app_handle.run_on_main_thread(|| {}).is_err() {
+            break;
+        }
+
+        std::thread::sleep(LIFECYCLE_POLL_INTERVAL);
+    });
+}
+
+fn poll_lifecycle(app_handle: &AppHandle, lifecycle: &UiLifecycle) {
+    if lifecycle.hotkey_bridge.take_activation_request() {
+        show_palette_from_lifecycle(app_handle);
+    }
+
+    if let Some(command) = lifecycle.tray.as_ref().and_then(UiTray::poll_command) {
+        handle_lifecycle_command(app_handle, lifecycle.tray.as_ref(), command);
+    }
+}
+
+fn handle_lifecycle_command(app_handle: &AppHandle, tray: Option<&UiTray>, command: TrayCommand) {
+    match command {
+        TrayCommand::Show => show_palette_from_lifecycle(app_handle),
+        TrayCommand::Hide => hide_palette_from_lifecycle(app_handle),
+        TrayCommand::ReloadConfig => reload_config_from_lifecycle(app_handle),
+        TrayCommand::EnableAutostart => enable_autostart_from_lifecycle(app_handle, tray),
+        TrayCommand::DisableAutostart => disable_autostart_from_lifecycle(app_handle, tray),
+        TrayCommand::Quit => app_handle.exit(0),
+    }
+}
+
+fn show_palette_from_lifecycle(app_handle: &AppHandle) {
+    if let Err(error) = show_palette_window(app_handle) {
+        tracing::warn!(%error, "failed to show palette from UI lifecycle");
+    }
+}
+
+fn hide_palette_from_lifecycle(app_handle: &AppHandle) {
+    if let Err(error) = hide_main_palette_window(app_handle) {
+        tracing::warn!(%error, "failed to hide palette from UI lifecycle");
+    }
+}
+
+fn reload_config_from_lifecycle(app_handle: &AppHandle) {
+    let state = app_handle.state::<AppState>();
+    match lock_palette(&state) {
+        Ok(mut palette) => {
+            palette.reload_config();
+            emit_palette_update(app_handle);
+        }
+        Err(error) => tracing::warn!(%error, "failed to reload config from UI lifecycle"),
+    };
+}
+
+fn enable_autostart_from_lifecycle(app_handle: &AppHandle, tray: Option<&UiTray>) {
+    match UiAutostart::enable() {
+        Ok(shortcut) => {
+            set_lifecycle_status(
+                app_handle,
+                PaletteStatusUpdate::Info(format!(
+                    "Launch at sign-in enabled: {}",
+                    shortcut.display()
+                )),
+            );
+            refresh_tray_autostart_menu(tray);
+        }
+        Err(error) => {
+            set_lifecycle_status(
+                app_handle,
+                PaletteStatusUpdate::Error(format!("Could not enable launch at sign-in: {error}")),
+            );
+        }
+    }
+}
+
+fn disable_autostart_from_lifecycle(app_handle: &AppHandle, tray: Option<&UiTray>) {
+    match UiAutostart::disable() {
+        Ok(shortcut) => {
+            set_lifecycle_status(
+                app_handle,
+                PaletteStatusUpdate::Info(format!(
+                    "Launch at sign-in disabled: {}",
+                    shortcut.display()
+                )),
+            );
+            refresh_tray_autostart_menu(tray);
+        }
+        Err(error) => {
+            set_lifecycle_status(
+                app_handle,
+                PaletteStatusUpdate::Error(format!("Could not disable launch at sign-in: {error}")),
+            );
+        }
+    }
+}
+
+enum PaletteStatusUpdate {
+    Info(String),
+    Error(String),
+}
+
+fn set_lifecycle_status(app_handle: &AppHandle, update: PaletteStatusUpdate) {
+    let state = app_handle.state::<AppState>();
+    match lock_palette(&state) {
+        Ok(mut palette) => {
+            match update {
+                PaletteStatusUpdate::Info(message) => palette.set_status_info(message),
+                PaletteStatusUpdate::Error(message) => palette.set_status_error(message),
+            }
+            emit_palette_update(app_handle);
+        }
+        Err(error) => tracing::warn!(%error, "failed to update palette status from UI lifecycle"),
+    };
+}
+
+fn refresh_tray_autostart_menu(tray: Option<&UiTray>) {
+    if let Some(tray) = tray {
+        tray.refresh_autostart_menu();
+    }
+}
+
+fn show_palette_window(app_handle: &AppHandle) -> Result<(), String> {
+    let window = main_window(app_handle)?;
+    window.show().map_err(|error| error.to_string())?;
+    window.unminimize().map_err(|error| error.to_string())?;
+    window.set_focus().map_err(|error| error.to_string())?;
+    emit_palette_shown(app_handle);
+    Ok(())
+}
+
+fn hide_main_palette_window(app_handle: &AppHandle) -> Result<(), String> {
+    let window = main_window(app_handle)?;
+    let state = app_handle.state::<AppState>();
+    reset_palette_for_hide(&state)?;
+    window.hide().map_err(|error| error.to_string())?;
+    emit_palette_update(&window);
+    Ok(())
+}
+
+fn hide_palette_window(window: &Window, state: &AppState) -> Result<(), String> {
+    reset_palette_for_hide(state)?;
+    window.hide().map_err(|error| error.to_string())?;
+    emit_palette_update(window);
+    Ok(())
+}
+
+fn reset_palette_for_hide(state: &AppState) -> Result<(), String> {
+    let mut palette = lock_palette(state)?;
+    palette.reset_for_next_activation();
+    Ok(())
+}
+
+fn main_window(app_handle: &AppHandle) -> Result<WebviewWindow, String> {
+    app_handle
+        .get_webview_window(MAIN_WINDOW_LABEL)
+        .ok_or_else(|| "main palette window is unavailable".to_string())
+}
+
+fn emit_palette_update<R>(emitter: &R)
+where
+    R: Emitter<tauri::Wry>,
+{
+    if let Err(error) = emitter.emit(PALETTE_UPDATED_EVENT, ()) {
+        tracing::warn!(%error, "failed to emit palette update event");
+    }
+}
+
+fn emit_palette_shown<R>(emitter: &R)
+where
+    R: Emitter<tauri::Wry>,
+{
+    if let Err(error) = emitter.emit(PALETTE_SHOWN_EVENT, ()) {
+        tracing::warn!(%error, "failed to emit palette shown event");
+    }
+}
+
+#[cfg(windows)]
+fn create_tray(state: &mut PaletteState) -> Option<UiTray> {
+    match UiTray::new() {
+        Ok(tray) => Some(tray),
+        Err(error) => {
+            let message = format!("Tray unavailable: {error}");
+            tracing::warn!("{message}");
+            state.set_status_error(message);
+            None
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn create_tray(_state: &mut PaletteState) -> Option<UiTray> {
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn close_policy_exits_when_no_background_lifecycle_exists() {
+        assert_eq!(
+            WindowClosePolicy::from_lifecycle(false, false),
+            WindowClosePolicy::CloseProcess
+        );
+    }
+
+    #[test]
+    fn close_policy_hides_when_hotkey_lifecycle_exists() {
+        assert_eq!(
+            WindowClosePolicy::from_lifecycle(true, false),
+            WindowClosePolicy::HideToBackground
+        );
+    }
+
+    #[test]
+    fn close_policy_hides_when_tray_lifecycle_exists() {
+        assert_eq!(
+            WindowClosePolicy::from_lifecycle(false, true),
+            WindowClosePolicy::HideToBackground
+        );
+    }
+
+    #[test]
+    fn close_policy_hides_when_multiple_background_lifecycles_exist() {
+        assert_eq!(
+            WindowClosePolicy::from_lifecycle(true, true),
+            WindowClosePolicy::HideToBackground
+        );
+    }
+
+    #[test]
+    fn lifecycle_without_hotkey_or_tray_is_inactive() {
+        let lifecycle = UiLifecycle::new(UiHotkeyBridge::disabled(), None);
+
+        assert!(!lifecycle.is_active());
     }
 }

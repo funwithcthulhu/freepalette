@@ -25,6 +25,8 @@ daemon/plugin-facing crates.
 - TOML config loading from an explicit path or the platform default location.
 - Fuzzy search plus a small ranking model.
 - A minimal Tauri desktop UI in `freepalette-ui`.
+- On Windows, the Tauri UI wires the configured hotkey, tray icon, and
+  launch-at-sign-in menu actions into the single-process UI lifecycle.
 - Clipboard provider backed by explicit in-memory daemon state. System clipboard
   capture and persistence are not implemented.
 - Hotkey config validation in daemon state.
@@ -34,12 +36,13 @@ daemon/plugin-facing crates.
 ## What Does Not Work Yet
 
 - A long-running IPC daemon.
-- Tauri UI hotkey, tray, or launch-at-sign-in wiring.
 - macOS or Linux global hotkey registration.
 - macOS or Linux tray integration or autostart setup.
 - Clipboard capture or persistence.
 - External plugin execution.
 - macOS or Linux app indexing.
+- Windows installer packaging.
+- Shell-confirmation UI in the desktop app.
 - A polished desktop launcher experience.
 
 ## Build And Test
@@ -108,8 +111,9 @@ ctrl = true
 alt = true
 ```
 
-The Tauri UI does not register this hotkey yet. Escape closes the current UI
-window because there is no active tray or hotkey lifecycle in the Tauri shell.
+On Windows, the Tauri UI reads this config at startup. If the binding is
+enabled and can be registered, pressing it shows and focuses the palette. The
+hotkey remains disabled by default.
 
 The daemon can also register the same binding in a foreground diagnostic mode:
 
@@ -148,8 +152,9 @@ a clearly labeled Notepad fallback only when there are no configured apps.
 - `freepalette-plugin-api`: public provider/action data types used by built-in
   providers and future plugin protocol work.
 - `freepalette-ui`: minimal Tauri palette shell with a static frontend over the
-  Rust palette state. It is early and has no daemon IPC, tray, global hotkey, or
-  launch-at-sign-in wiring.
+  Rust palette state. On Windows it owns the configured hotkey, tray icon, and
+  launch-at-sign-in tray actions. It is early and has no daemon IPC, installer,
+  or shell-confirmation UI.
 
 ## Security-Sensitive Areas
 
