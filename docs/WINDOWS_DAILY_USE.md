@@ -16,7 +16,7 @@ On Windows, `freepalette-ui` can:
 - register the configured global hotkey when enabled;
 - create a tray icon;
 - hide and show the palette from the tray or hotkey;
-- enable or disable launch at sign-in from the tray menu.
+- enable or disable launch at sign-in from the tray menu;
 - build a local unsigned NSIS installer through Tauri.
 
 The installer path is basic packaging groundwork. It is not signed and is not
@@ -105,7 +105,7 @@ intend to execute a shell action there.
 
 - No signed or published installer.
 - No auto-update.
-- No polished shell-confirmation review surface.
+- No dedicated shell-confirmation review surface.
 - No background IPC daemon.
 - No macOS or Linux tray/autostart path.
 - No system clipboard capture.

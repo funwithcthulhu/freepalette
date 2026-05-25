@@ -44,8 +44,8 @@ daemon/plugin-facing crates.
 - macOS or Linux app indexing.
 - Signed or published Windows installer artifacts.
 - Auto-update.
-- A polished shell-confirmation UI in the desktop app.
-- A polished desktop launcher experience.
+- A dedicated shell-command review surface in the desktop app.
+- A complete desktop launcher workflow.
 
 ## Build And Test
 
@@ -156,7 +156,8 @@ a clearly labeled Notepad fallback only when there are no configured apps.
 - `freepalette-ui`: minimal Tauri palette shell with a static frontend over the
   Rust palette state. On Windows it owns the configured hotkey, tray icon, and
   launch-at-sign-in tray actions. It is early and has no daemon IPC,
-  auto-update, signed installer artifact, or polished shell-confirmation UI.
+  auto-update, signed installer artifact, or dedicated shell-command review
+  surface.
 
 ## Security-Sensitive Areas
 
@@ -180,7 +181,7 @@ with shell execution allowed. External plugin execution is not implemented.
 - [Hotkeys](docs/HOTKEYS.md)
 - [Windows daily use](docs/WINDOWS_DAILY_USE.md)
 - [Windows installer](docs/WINDOWS_INSTALLER.md)
-- [UI smoke test checklist](docs/UI_SMOKE_TEST.md)
+- [Manual smoke tests](docs/manual-smoke-tests.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Non-goals](docs/NON_GOALS.md)
 - [Plugin model](docs/PLUGIN_MODEL.md)

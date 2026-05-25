@@ -67,7 +67,7 @@ project settles.
   surface.
 - Add basic app icons/metadata to indexed app results where platform data is
   available.
-- Embed the checked-in Windows icon when packaging work starts.
+- Verify the checked-in Windows icon in installed app shortcuts.
 
 ## Later
 

@@ -100,6 +100,22 @@ fn search_calculator_query_prints_result() {
 }
 
 #[test]
+fn config_path_prints_platform_path_or_unavailable_message() {
+    let output = run_freepalette(&["config-path"]);
+
+    assert!(output.status.success());
+    let stdout = output_text(&output.stdout);
+    let lines = stdout.lines().collect::<Vec<_>>();
+
+    assert_eq!(lines.len(), 1);
+    assert!(
+        lines[0].ends_with("freepalette.toml")
+            || lines[0] == "default config path is unavailable on this platform",
+        "unexpected config-path output: {stdout}"
+    );
+}
+
+#[test]
 fn search_shell_query_prints_action_without_running() {
     let config = write_config(
         "shell-search",

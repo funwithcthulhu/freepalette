@@ -161,8 +161,9 @@ are no configured apps.
   default. The foreground daemon diagnostic path remains separate. See
   [Hotkeys](HOTKEYS.md).
 - Tray integration and launch-at-sign-in tray actions are Windows-only.
-- Installer packaging is not implemented.
-- The UI has a basic shell-confirmation prompt, not a polished shell action
+- Windows NSIS installer configuration exists, but installer artifacts are not
+  signed or published from this repository yet.
+- The UI has a basic shell-confirmation prompt, not a dedicated shell action
   review surface.
 - External plugin execution is not implemented.
 - The UI is usable for smoke testing but is not a finished launcher.
