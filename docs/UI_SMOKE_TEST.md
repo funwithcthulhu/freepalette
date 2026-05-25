@@ -1,7 +1,7 @@
 # UI Smoke Test Checklist
 
-This is a manual checklist for the current Tauri desktop UI. It is meant for
-maintainers before a release or after changes to the palette window.
+This is a UI-only checklist for the current Tauri desktop UI. For the broader
+Windows release smoke path, see [manual-smoke-tests.md](manual-smoke-tests.md).
 
 ## Build Checks
 
@@ -46,9 +46,9 @@ Check lifecycle behavior:
 
 Current Tauri limits:
 
-- No installer is implemented.
-- Shell confirmation uses a basic prompt instead of a dedicated in-app review
-  surface.
+- The installer is unsigned and is not published as an official artifact.
+- Shell confirmation uses a basic prompt instead of a dedicated in-app command
+  review surface.
 - No macOS or Linux tray/autostart path is implemented.
 
 ## Notes

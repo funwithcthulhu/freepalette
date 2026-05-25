@@ -51,11 +51,14 @@ CLI integration tests live in `crates/freepalette-cli/tests`. Prefer temporary
 config files that disable unrelated providers. That keeps tests independent of
 the local app index.
 
-## UI Smoke Tests
+## Manual Smoke Tests
 
-The current UI smoke-test checklist lives in
-[UI_SMOKE_TEST.md](UI_SMOKE_TEST.md). Use it before release candidates and after
-changes to the Tauri window or palette command bridge.
+The main Windows smoke-test checklist lives in
+[manual-smoke-tests.md](manual-smoke-tests.md). Use it before release
+candidates and after changes to CLI behavior, app indexing, shell execution,
+the Tauri UI, lifecycle behavior, or installer packaging.
+
+The narrower UI-only checklist lives in [UI_SMOKE_TEST.md](UI_SMOKE_TEST.md).
 
 ## Documentation
 
