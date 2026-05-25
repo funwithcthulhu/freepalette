@@ -330,6 +330,7 @@ fn action_for_app(app: &IndexedApp) -> Action {
 
 fn launch_command(command: &str, args: &[String]) -> Result<(), PluginError> {
     ensure_launch_command_is_complete(command)?;
+    ensure_launch_command_has_no_embedded_arguments(command)?;
 
     if command_is_explicit_path(command) {
         ensure_app_target_exists(Path::new(command))?;
@@ -346,6 +347,16 @@ fn ensure_launch_command_is_complete(command: &str) -> Result<(), PluginError> {
     if command.trim().is_empty() {
         Err(PluginError::Action(
             "app launch command is empty; check the app index entry or config".to_string(),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn ensure_launch_command_has_no_embedded_arguments(command: &str) -> Result<(), PluginError> {
+    if command.contains('"') {
+        Err(PluginError::Action(
+            "app launch command must be an executable path without embedded quotes or arguments; store arguments separately".to_string(),
         ))
     } else {
         Ok(())
@@ -792,6 +803,56 @@ mod tests {
             .expect_err("empty app command should fail before spawning");
 
         assert!(error.to_string().contains("app launch command is empty"));
+    }
+
+    #[test]
+    fn parsed_shortcut_target_with_spaces_preserves_command_and_args() {
+        let executable = r"C:\Program Files\Example App\app.exe".to_string();
+        let args = vec![
+            "--profile".to_string(),
+            "German News".to_string(),
+            "--safe-mode".to_string(),
+        ];
+        let indexed = IndexedApp::discovered(
+            AppEntry {
+                name: "Example App".to_string(),
+                command: executable.clone(),
+                args: args.clone(),
+                keywords: Vec::new(),
+            },
+            PathBuf::from(r"C:\Start Menu\Example App.lnk"),
+        );
+
+        let result = app_result(&indexed);
+        let report_entry = app_index_entry(&indexed);
+
+        assert!(matches!(
+            &result.action,
+            Action::LaunchApp {
+                command,
+                args: action_args,
+            }
+                if command == &executable && action_args == &args
+        ));
+        assert!(!matches!(&result.action, Action::RunShell { .. }));
+        assert_eq!(report_entry.command, executable);
+        assert_eq!(report_entry.args, args);
+        assert_eq!(
+            report_entry.source_detail.as_deref(),
+            Some(r"C:\Start Menu\Example App.lnk")
+        );
+    }
+
+    #[test]
+    fn flattened_quoted_shortcut_target_is_rejected_before_launch() {
+        let flattened_command = r#""C:\Program Files\Example App\app.exe" --profile "German News""#;
+
+        let error = launch_command(flattened_command, &[])
+            .expect_err("flattened shortcut command should be rejected");
+
+        assert!(error
+            .to_string()
+            .contains("without embedded quotes or arguments"));
     }
 
     #[test]
