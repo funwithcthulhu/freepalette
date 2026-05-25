@@ -177,12 +177,35 @@ fn format_subtitle(subtitle: &str) -> String {
 
 fn describe_action(action: &Action) -> String {
     match action {
-        Action::LaunchApp { command, args } if args.is_empty() => format!("launch app: {command}"),
-        Action::LaunchApp { command, args } => format!("launch app: {command} {}", args.join(" ")),
+        Action::LaunchApp { command, args } => {
+            format!("launch app: {}", format_command_with_args(command, args))
+        }
         Action::OpenPath { path } => format!("open path: {path}"),
         Action::RunShell { command } => format!("run shell command: {command}"),
         Action::CopyText { text } => format!("copy text: {text}"),
         Action::Noop { message } => format!("no-op: {message}"),
+    }
+}
+
+fn format_command_with_args(command: &str, args: &[String]) -> String {
+    let command = format_arg_for_display(command);
+    if args.is_empty() {
+        command
+    } else {
+        let formatted_args = args
+            .iter()
+            .map(|arg| format_arg_for_display(arg))
+            .collect::<Vec<_>>()
+            .join(" ");
+        format!("{command} {formatted_args}")
+    }
+}
+
+fn format_arg_for_display(arg: &str) -> String {
+    if arg.chars().any(char::is_whitespace) {
+        format!("\"{}\"", arg.replace('"', "\\\""))
+    } else {
+        arg.to_string()
     }
 }
 
@@ -265,11 +288,7 @@ fn print_disabled_app_report(json: bool) -> anyhow::Result<()> {
 }
 
 fn describe_app_entry(entry: &AppIndexEntry) -> String {
-    if entry.args.is_empty() {
-        entry.command.clone()
-    } else {
-        format!("{} {}", entry.command, entry.args.join(" "))
-    }
+    format_command_with_args(&entry.command, &entry.args)
 }
 
 fn describe_app_source(entry: &AppIndexEntry) -> String {
@@ -305,5 +324,18 @@ mod tests {
     #[test]
     fn disabled_app_report_can_be_printed() {
         print_app_report(None, false).expect("disabled app report should print");
+    }
+
+    #[test]
+    fn app_action_preview_keeps_command_and_args_readable() {
+        let action = Action::LaunchApp {
+            command: r"C:\Program Files\Example App\app.exe".to_string(),
+            args: vec!["--profile".to_string(), "German News".to_string()],
+        };
+
+        assert_eq!(
+            describe_action(&action),
+            r#"launch app: "C:\Program Files\Example App\app.exe" --profile "German News""#
+        );
     }
 }
