@@ -42,7 +42,7 @@ daemon/plugin-facing crates.
 - External plugin execution.
 - macOS or Linux app indexing.
 - Windows installer packaging.
-- Shell-confirmation UI in the desktop app.
+- A polished shell-confirmation UI in the desktop app.
 - A polished desktop launcher experience.
 
 ## Build And Test
@@ -154,7 +154,7 @@ a clearly labeled Notepad fallback only when there are no configured apps.
 - `freepalette-ui`: minimal Tauri palette shell with a static frontend over the
   Rust palette state. On Windows it owns the configured hotkey, tray icon, and
   launch-at-sign-in tray actions. It is early and has no daemon IPC, installer,
-  or shell-confirmation UI.
+  or polished shell-confirmation UI.
 
 ## Security-Sensitive Areas
 
@@ -166,8 +166,9 @@ Treat these areas carefully in issues and pull requests:
 - config loading and future file watching;
 - future plugin execution.
 
-Shell commands must not execute from search alone. External plugin execution is
-not implemented.
+Shell commands must not execute from search alone. In the UI, shell actions
+require an explicit confirmation prompt before they are passed to the daemon
+with shell execution allowed. External plugin execution is not implemented.
 
 ## Documentation
 

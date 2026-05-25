@@ -26,9 +26,12 @@ Check the palette:
 - The window opens with the search input focused.
 - `calc 2+2` shows a calculator result.
 - `notepad` shows an app result on Windows.
-- `> echo hello` shows a shell result and labels it as blocked.
+- `> echo hello` shows a shell result and labels it as requiring confirmation.
 - Enter on `calc 2+2` reports that the calculator result is ready to copy.
-- Enter on `> echo hello` refuses shell execution.
+- Enter on `> echo hello` opens a shell confirmation prompt.
+- Canceling the shell prompt reports that the command was not run.
+- Confirming `> echo hello` runs only that selected shell command and reports
+  the shell exit status.
 - Arrow up/down changes the selected row without panicking.
 
 Check lifecycle behavior:
@@ -44,7 +47,8 @@ Check lifecycle behavior:
 Current Tauri limits:
 
 - No installer is implemented.
-- No shell-confirmation UI is implemented.
+- Shell confirmation uses a basic prompt instead of a dedicated in-app review
+  surface.
 - No macOS or Linux tray/autostart path is implemented.
 
 ## Notes

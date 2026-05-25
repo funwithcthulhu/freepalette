@@ -30,6 +30,7 @@ project settles.
 - Result list.
 - Keyboard selection.
 - Enter to execute selected non-shell actions.
+- Basic shell-confirmation prompt before UI shell execution.
 - Escape to close.
 
 ### v0.4: Shared Daemon State
@@ -47,7 +48,7 @@ project settles.
 - Clipboard retention limits and clear behavior in daemon state.
 - Hotkey config validation and platform status reporting.
 - Foreground Windows hotkey registration through `freepalette-daemon run`.
-- UI shell execution refusal with no shell confirmation flow yet.
+- UI shell execution requires a basic confirmation prompt.
 - Windows hotkey, tray, and launch-at-sign-in helper code wired into the current
   Tauri binary.
 - Checked-in palette-and-brush icon assets.
@@ -60,7 +61,8 @@ project settles.
 - Add release packaging notes and installer work for Windows.
 - Add explicit user controls before any real system clipboard capture.
 - Add a CLI command for app index refresh if a long-running process needs it.
-- Keep shell execution blocked in UI until a confirmation flow exists.
+- Replace the basic shell confirmation prompt with a clearer in-app review
+  surface.
 - Add basic app icons/metadata to indexed app results where platform data is
   available.
 - Embed the checked-in Windows icon when packaging work starts.

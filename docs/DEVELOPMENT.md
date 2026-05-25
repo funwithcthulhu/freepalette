@@ -29,8 +29,8 @@ cargo test --workspace --all-features
 - `freepalette-cli`: command parsing and terminal output.
 - `freepalette-ui`: minimal Tauri palette shell and shared palette state. The
   Windows hotkey, tray, and launch-at-sign-in helpers are wired into the Tauri
-  binary on Windows. Shell actions remain blocked because there is no
-  confirmation UI.
+  binary on Windows. Shell actions use a basic confirmation prompt before the
+  UI allows execution.
 - `freepalette-plugin-api`: provider/action data types.
 
 ## Adding A Provider

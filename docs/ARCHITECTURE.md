@@ -66,7 +66,8 @@ HTML, CSS, and JavaScript. It invokes Rust commands in the same process to:
 - reload config through daemon state;
 - reset visible palette state.
 
-Shell actions are shown but blocked because there is no confirmation UI yet.
+Shell actions are shown during search and require an explicit confirmation
+prompt before the UI passes them to the daemon with shell execution allowed.
 On Windows, the Tauri binary also owns the configured global hotkey, a tray
 icon, and launch-at-sign-in tray actions. If the tray or hotkey lifecycle is
 active, Escape and window close hide the palette instead of exiting the process.
@@ -161,6 +162,7 @@ are no configured apps.
   [Hotkeys](HOTKEYS.md).
 - Tray integration and launch-at-sign-in tray actions are Windows-only.
 - Installer packaging is not implemented.
-- The UI blocks shell actions and has no shell-confirmation flow yet.
+- The UI has a basic shell-confirmation prompt, not a polished shell action
+  review surface.
 - External plugin execution is not implemented.
 - The UI is usable for smoke testing but is not a finished launcher.
