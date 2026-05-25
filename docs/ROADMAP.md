@@ -53,12 +53,14 @@ project settles.
   Tauri binary.
 - Checked-in palette-and-brush icon assets.
 - Windows daily-use and UI smoke-test documentation.
+- Local unsigned Windows NSIS installer configuration through Tauri.
 - Tauri UI shell for the current Windows desktop path.
 
 ## Next
 
 - Improve CLI and provider documentation as behavior changes.
-- Add release packaging notes and installer work for Windows.
+- Document release provenance and signing before publishing Windows installer
+  artifacts.
 - Add explicit user controls before any real system clipboard capture.
 - Add a CLI command for app index refresh if a long-running process needs it.
 - Replace the basic shell confirmation prompt with a clearer in-app review
@@ -79,7 +81,7 @@ project settles.
 - macOS and Linux tray/autostart equivalents if the UI lifecycle model holds up.
 - macOS and Linux app indexing.
 - Subprocess plugin protocol.
-- Packaging notes for each platform.
+- Packaging notes for macOS and Linux.
 
 ## Out Of Scope For Now
 

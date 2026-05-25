@@ -21,11 +21,20 @@
     ]
   },
   "bundle": {
-    "active": false,
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "freepalette contributors",
+    "homepage": "https://github.com/funwithcthulhu/freepalette",
+    "license": "MIT OR Apache-2.0",
+    "shortDescription": "Local-first command palette and app launcher.",
+    "longDescription": "freepalette is a local-first command palette and app launcher. It does not require an account, cloud service, or telemetry.",
     "icon": [
       "../../assets/icons/freepalette-32.png",
       "../../assets/icons/freepalette-256.png",
       "../../assets/icons/freepalette.ico"
-    ]
+    ],
+    "windows": {
+      "allowDowngrades": false
+    }
   }
 }

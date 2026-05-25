@@ -8,6 +8,10 @@ the core model settles.
 
 ## Unreleased
 
+- Added local Windows NSIS installer configuration and documentation for the
+  Tauri UI. The installer is unsigned and not published as an official release
+  artifact yet.
+
 ## 0.5.0 - 2026-05-23
 
 - Bumped workspace crate versions to `0.5.0`.
