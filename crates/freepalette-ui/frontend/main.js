@@ -4,6 +4,10 @@ const listen = window.__TAURI__.event.listen;
 const searchInput = document.querySelector("#search");
 const resultsList = document.querySelector("#results");
 const statusLine = document.querySelector("#status");
+const shellConfirmation = document.querySelector("#shell-confirmation");
+const shellCommand = document.querySelector("#shell-command");
+const confirmShellButton = document.querySelector("#confirm-shell");
+const cancelShellButton = document.querySelector("#cancel-shell");
 
 let palette = {
   query: "",
@@ -11,13 +15,21 @@ let palette = {
   selectedIndex: null,
   status: { state: "ready" },
 };
+let pendingShellCommand = null;
 
 searchInput.addEventListener("input", async () => {
+  pendingShellCommand = null;
   await callPalette("search_palette", { query: searchInput.value });
 });
 
 searchInput.addEventListener("keydown", async (event) => {
-  if (event.key === "ArrowDown") {
+  if (pendingShellCommand && event.key === "Enter") {
+    event.preventDefault();
+    await confirmPendingShellCommand();
+  } else if (pendingShellCommand && event.key === "Escape") {
+    event.preventDefault();
+    await cancelPendingShellCommand();
+  } else if (event.key === "ArrowDown") {
     event.preventDefault();
     await callPalette("move_selection", { direction: "next" });
   } else if (event.key === "ArrowUp") {
@@ -30,6 +42,21 @@ searchInput.addEventListener("keydown", async (event) => {
   } else if (event.key === "Escape") {
     event.preventDefault();
     await invoke("close_palette_window");
+  }
+});
+
+confirmShellButton.addEventListener("click", async () => {
+  await confirmPendingShellCommand();
+});
+
+cancelShellButton.addEventListener("click", async () => {
+  await cancelPendingShellCommand();
+});
+
+document.addEventListener("keydown", async (event) => {
+  if (pendingShellCommand && event.key === "Escape") {
+    event.preventDefault();
+    await cancelPendingShellCommand();
   }
 });
 
@@ -48,6 +75,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 async function callPalette(command, args = {}) {
   try {
     palette = await invoke(command, args);
+    pendingShellCommand = null;
     render();
   } catch (error) {
     statusLine.textContent = String(error);
@@ -60,15 +88,12 @@ async function handleExecutionResponse(response) {
   render();
 
   if (response.execution.state === "needs-shell-confirmation") {
-    const confirmed = window.confirm(shellConfirmationMessage(response.execution.command));
-    if (confirmed) {
-      const confirmedResponse = await invoke("execute_confirmed_shell");
-      await handleExecutionResponse(confirmedResponse);
-    } else {
-      await callPalette("cancel_shell_confirmation");
-    }
+    pendingShellCommand = response.execution.command;
+    render();
     return;
   }
+
+  pendingShellCommand = null;
 
   if (
     response.execution.state === "completed" &&
@@ -78,14 +103,30 @@ async function handleExecutionResponse(response) {
   }
 }
 
-function shellConfirmationMessage(command) {
-  return `Run this shell command?\n\n${command}`;
+async function confirmPendingShellCommand() {
+  if (!pendingShellCommand) {
+    return;
+  }
+
+  pendingShellCommand = null;
+  const confirmedResponse = await invoke("execute_confirmed_shell");
+  await handleExecutionResponse(confirmedResponse);
+}
+
+async function cancelPendingShellCommand() {
+  if (!pendingShellCommand) {
+    return;
+  }
+
+  pendingShellCommand = null;
+  await callPalette("cancel_shell_confirmation");
 }
 
 function render() {
   searchInput.value = palette.query;
   resultsList.replaceChildren(...resultElements(palette.results));
   renderStatus(palette.status);
+  renderShellConfirmation();
 }
 
 function focusSearch() {
@@ -106,6 +147,7 @@ function resultElements(results) {
     const item = document.createElement("li");
     item.className = index === palette.selectedIndex ? "result selected" : "result";
     item.addEventListener("click", async () => {
+      pendingShellCommand = null;
       const direction = index < palette.selectedIndex ? "previous" : "next";
       while (palette.selectedIndex !== index) {
         await callPalette("move_selection", { direction });
@@ -128,14 +170,23 @@ function resultElements(results) {
     meta.className = "meta";
     const provider = document.createElement("span");
     provider.textContent = result.provider;
-    const score = document.createElement("span");
-    score.className = "score";
-    score.textContent = ranked.score;
-    meta.append(provider, score);
+    meta.append(provider);
 
     item.append(content, meta);
     return item;
   });
+}
+
+function renderShellConfirmation() {
+  if (!pendingShellCommand) {
+    shellConfirmation.hidden = true;
+    shellCommand.textContent = "";
+    return;
+  }
+
+  shellCommand.textContent = pendingShellCommand;
+  shellConfirmation.hidden = false;
+  confirmShellButton.focus();
 }
 
 function renderStatus(status) {

@@ -19,6 +19,25 @@
       <ol id="results" class="results"></ol>
       <p id="status" class="status" aria-live="polite"></p>
     </main>
+    <section
+      id="shell-confirmation"
+      class="shell-confirmation"
+      aria-live="assertive"
+      hidden
+    >
+      <div class="shell-confirmation-panel" role="dialog" aria-modal="true">
+        <p class="shell-confirmation-title">Run shell command?</p>
+        <code id="shell-command" class="shell-command"></code>
+        <div class="shell-confirmation-actions">
+          <button id="cancel-shell" class="secondary-button" type="button">
+            Cancel
+          </button>
+          <button id="confirm-shell" class="danger-button" type="button">
+            Run
+          </button>
+        </div>
+      </div>
+    </section>
     <script src="./main.js"></script>
   </body>
 </html>
