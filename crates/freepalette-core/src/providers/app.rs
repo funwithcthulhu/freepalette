@@ -16,6 +16,7 @@ use tracing::debug;
 use crate::config::{AppEntry, Config};
 
 const PROVIDER_ID: &str = "apps";
+const NOISY_START_MENU_ENTRY_SCORE_HINT: i64 = -220;
 #[cfg(target_os = "windows")]
 const START_MENU_PROGRAMS: &str = r"Microsoft\Windows\Start Menu\Programs";
 
@@ -293,10 +294,10 @@ enum AppIndexError {
 
 fn app_result(app: &IndexedApp) -> SearchResult {
     let subtitle = match &app.source {
-        AppSource::Config => command_summary(&app.entry),
+        AppSource::Config => "Configured app".to_string(),
         #[cfg(any(test, target_os = "windows"))]
-        AppSource::Known { label } => format!("{label}: {}", command_summary(&app.entry)),
-        AppSource::WindowsStartMenu { path } => format!("Windows Start Menu: {}", path.display()),
+        AppSource::Known { label } => label.clone(),
+        AppSource::WindowsStartMenu { .. } => "Windows Start Menu".to_string(),
         AppSource::Fallback { reason } => format!("Fallback sample: {reason}"),
     };
 
@@ -309,6 +310,17 @@ fn app_result(app: &IndexedApp) -> SearchResult {
     )
     .with_subtitle(subtitle)
     .with_keywords(app.entry.keywords.clone())
+    .with_score_hint(app_score_hint(app))
+}
+
+fn app_score_hint(app: &IndexedApp) -> i64 {
+    if matches!(app.source, AppSource::WindowsStartMenu { .. })
+        && is_noisy_start_menu_entry(&app.entry.name)
+    {
+        NOISY_START_MENU_ENTRY_SCORE_HINT
+    } else {
+        0
+    }
 }
 
 fn action_for_app(app: &IndexedApp) -> Action {
@@ -426,14 +438,6 @@ impl AppSource {
             ),
             Self::Fallback { reason } => (AppIndexEntrySource::Fallback, Some(reason.clone())),
         }
-    }
-}
-
-fn command_summary(entry: &AppEntry) -> String {
-    if entry.args.is_empty() {
-        entry.command.clone()
-    } else {
-        format!("{} {}", entry.command, entry.args.join(" "))
     }
 }
 
@@ -631,6 +635,24 @@ fn is_shell_opened_start_menu_extension(extension: &str) -> bool {
     matches!(extension, "lnk" | "appref-ms")
 }
 
+fn is_noisy_start_menu_entry(name: &str) -> bool {
+    let normalized = name.trim().to_ascii_lowercase();
+    normalized.starts_with("uninstall ")
+        || normalized.starts_with("uninstall-")
+        || normalized.starts_with("uninstall_")
+        || normalized.starts_with("documentation ")
+        || normalized.starts_with("install additional tools ")
+        || normalized.starts_with("samples for ")
+        || normalized.starts_with("tools for ")
+        || normalized.contains(" documentation")
+        || normalized.ends_with(" uninstaller")
+        || normalized.ends_with(" release notes")
+        || normalized.ends_with(" help")
+        || normalized.ends_with(" documentation")
+        || normalized.ends_with(" manual")
+        || normalized.ends_with(" readme")
+}
+
 fn keywords_for_discovered_app(path: &Path, extension: &str) -> Vec<String> {
     let mut keywords = vec![
         "app".to_string(),
@@ -692,6 +714,115 @@ mod tests {
         assert_eq!(result.provider.as_str(), "apps");
         assert_eq!(result.title, "Plain Text");
         assert_eq!(result.keywords, ["notepad"]);
+    }
+
+    #[test]
+    fn app_result_uses_source_specific_subtitle() {
+        let configured = app_result(&IndexedApp::configured(AppEntry::new(
+            "Configured Editor",
+            "editor.exe",
+        )));
+        let discovered = app_result(&IndexedApp::discovered(
+            AppEntry::new("Discovered Editor", "editor.lnk"),
+            PathBuf::from("Tools/Discovered Editor.lnk"),
+        ));
+
+        assert_eq!(configured.subtitle.as_deref(), Some("Configured app"));
+        assert_eq!(discovered.subtitle.as_deref(), Some("Windows Start Menu"));
+    }
+
+    #[test]
+    fn configured_app_keyword_alias_is_searchable() {
+        let mut entry = AppEntry::new("Visual Studio Code", "code.exe");
+        entry.keywords = vec!["code".to_string(), "editor".to_string()];
+        let provider = AppLauncherProvider::from_config_and_index_result(
+            &Config {
+                apps: vec![entry],
+                ..Default::default()
+            },
+            Ok(AppIndex {
+                entries: Vec::new(),
+                roots_checked: 1,
+            }),
+        );
+        let mut registry = ProviderRegistry::new();
+        registry
+            .register(provider)
+            .expect("app provider should register");
+
+        let results = registry
+            .search("code", 10)
+            .expect("alias search should succeed");
+
+        assert_eq!(results[0].result.title, "Visual Studio Code");
+        assert_eq!(
+            results[0].result.subtitle.as_deref(),
+            Some("Configured app")
+        );
+    }
+
+    #[test]
+    fn noisy_start_menu_entries_are_demoted_but_remain_searchable() {
+        let indexed = AppIndex {
+            entries: vec![
+                IndexedApp::discovered(
+                    AppEntry::new("Node.js", "Node.js.lnk"),
+                    PathBuf::from("Node.js.lnk"),
+                ),
+                IndexedApp::discovered(
+                    AppEntry::new("Uninstall Node.js", "Uninstall Node.js.lnk"),
+                    PathBuf::from("Uninstall Node.js.lnk"),
+                ),
+                IndexedApp::discovered(
+                    AppEntry::new("Node.js Documentation", "Node.js Documentation.lnk"),
+                    PathBuf::from("Node.js Documentation.lnk"),
+                ),
+                IndexedApp::discovered(
+                    AppEntry::new(
+                        "Documentation for Desktop Apps",
+                        "Documentation for Desktop Apps.lnk",
+                    ),
+                    PathBuf::from("Documentation for Desktop Apps.lnk"),
+                ),
+                IndexedApp::discovered(
+                    AppEntry::new(
+                        "Install Additional Tools for Node.js",
+                        "Install Additional Tools for Node.js.lnk",
+                    ),
+                    PathBuf::from("Install Additional Tools for Node.js.lnk"),
+                ),
+            ],
+            roots_checked: 1,
+        };
+        let provider =
+            AppLauncherProvider::from_config_and_index_result(&Config::default(), Ok(indexed));
+        let mut registry = ProviderRegistry::new();
+        registry
+            .register(provider)
+            .expect("app provider should register");
+
+        let node_results = registry
+            .search("node", 10)
+            .expect("node search should succeed");
+        let uninstall_results = registry
+            .search("uninstall node", 10)
+            .expect("uninstall search should succeed");
+
+        assert_eq!(node_results[0].result.title, "Node.js");
+        assert!(node_results
+            .iter()
+            .any(|ranked| ranked.result.title == "Uninstall Node.js"));
+        let node_position = node_results
+            .iter()
+            .position(|ranked| ranked.result.title == "Node.js")
+            .expect("normal app should remain visible");
+        let docs_position = node_results
+            .iter()
+            .position(|ranked| ranked.result.title == "Documentation for Desktop Apps")
+            .expect("noisy docs shortcut should remain searchable");
+
+        assert!(node_position < docs_position);
+        assert_eq!(uninstall_results[0].result.title, "Uninstall Node.js");
     }
 
     #[test]

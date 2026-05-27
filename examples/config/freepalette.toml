@@ -23,10 +23,15 @@ meta = false
 [[apps]]
 name = "Notepad"
 command = "notepad.exe"
-keywords = ["editor", "text", "sample"]
+keywords = ["editor", "text", "sample", "notes"]
 
 [[apps]]
 name = "Project shell"
 command = "powershell.exe"
 args = ["-NoLogo"]
 keywords = ["terminal", "shell", "sample"]
+
+[[apps]]
+name = "Visual Studio Code"
+command = "code"
+keywords = ["code", "editor", "workspace"]
