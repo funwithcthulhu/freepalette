@@ -90,6 +90,7 @@ cargo run -p freepalette-cli -- search "> echo hello" --run --allow-shell
 See [examples/config/freepalette.toml](examples/config/freepalette.toml).
 
 The CLI accepts `--config <path>` for commands that load providers.
+Configured app `keywords` act as local aliases for search.
 
 Clipboard capture is off by default:
 

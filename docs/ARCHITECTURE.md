@@ -127,6 +127,8 @@ Ranking is simple:
 
 - fuzzy score over title, subtitle, and keywords;
 - provider score hints for command-style results such as calculator and shell;
+- small app score hints, currently used to demote noisy Start Menu entries such
+  as uninstallers and documentation shortcuts;
 - exact-title and prefix-title bonuses;
 - small result-kind bias for current MVP ergonomics;
 - title and ID ordering as the final tie-breakers.
@@ -143,7 +145,10 @@ The app provider scans these Start Menu roots on Windows:
 
 It recursively indexes `.lnk`, `.exe`, and `.appref-ms` files. Configured apps
 are loaded first and win over discovered apps with the same display name. User
-Start Menu entries are checked before system entries.
+Start Menu entries are checked before system entries. Configured app
+`keywords` can be used as local aliases. Discovered uninstallers, help files,
+documentation, manuals, readmes, and release notes remain searchable but receive
+a lower score than normal app entries.
 
 Shortcut-like entries open through the Windows shell. Direct `.exe` entries are
 launched by path. If indexing is unsupported, unavailable, or empty, the
