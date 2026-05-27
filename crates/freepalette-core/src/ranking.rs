@@ -9,6 +9,8 @@ const APP_RESULT_BIAS: i64 = 30;
 const CALCULATOR_RESULT_BIAS: i64 = 25;
 const SHELL_RESULT_BIAS: i64 = 20;
 const CLIPBOARD_RESULT_BIAS: i64 = 10;
+const MIN_QUERY_CHARS_FOR_FUZZY_SCORE_FLOOR: usize = 3;
+const MIN_FUZZY_SCORE_FOR_PLAIN_RESULT: i64 = 70;
 
 /// A result after applying the core ranking model.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -45,7 +47,10 @@ fn rank_result(query: &str, result: SearchResult) -> Option<RankedResult> {
     let haystack = result_haystack(&result);
     let fuzzy = fuzzy_score(trimmed_query, &haystack);
 
-    if !trimmed_query.is_empty() && fuzzy.is_none() && result.score_hint <= 0 {
+    if !trimmed_query.is_empty()
+        && result.score_hint <= 0
+        && !plain_fuzzy_match_is_strong_enough(trimmed_query, fuzzy)
+    {
         return None;
     }
 
@@ -63,6 +68,18 @@ fn rank_result(query: &str, result: SearchResult) -> Option<RankedResult> {
         score: fuzzy.unwrap_or(0) + result.score_hint + exact_bonus + kind_bias(result.kind),
         result,
     })
+}
+
+fn plain_fuzzy_match_is_strong_enough(query: &str, fuzzy: Option<i64>) -> bool {
+    let Some(score) = fuzzy else {
+        return false;
+    };
+
+    if query.chars().count() < MIN_QUERY_CHARS_FOR_FUZZY_SCORE_FLOOR {
+        return true;
+    }
+
+    score >= MIN_FUZZY_SCORE_FOR_PLAIN_RESULT
 }
 
 fn result_haystack(result: &SearchResult) -> String {
@@ -191,6 +208,26 @@ mod tests {
             .map(|ranked| ranked.result.title.as_str())
             .collect::<Vec<_>>();
         assert_eq!(titles, vec!["Notepad", "Notepad Helper"]);
+    }
+
+    #[test]
+    fn weak_plain_fuzzy_matches_are_removed_for_app_queries() {
+        let ranked = rank_results(
+            "node",
+            vec![
+                result_from_provider("apps", "node", "Node.js", ResultKind::App, 0),
+                result_from_provider(
+                    "apps",
+                    "windows-defender-firewall",
+                    "Windows Defender Firewall with Advanced Security",
+                    ResultKind::App,
+                    0,
+                ),
+            ],
+        );
+
+        assert_eq!(ranked.len(), 1);
+        assert_eq!(ranked[0].result.title, "Node.js");
     }
 
     #[test]
