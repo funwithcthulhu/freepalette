@@ -653,23 +653,13 @@ fn is_noisy_start_menu_entry(name: &str) -> bool {
         || normalized.ends_with(" readme")
 }
 
-fn keywords_for_discovered_app(path: &Path, extension: &str) -> Vec<String> {
-    let mut keywords = vec![
-        "app".to_string(),
-        "launcher".to_string(),
-        "windows".to_string(),
-        extension.to_string(),
-    ];
-
-    keywords.extend(
-        path.parent()
-            .and_then(Path::file_name)
-            .and_then(|name| name.to_str())
-            .into_iter()
-            .map(ToString::to_string),
-    );
-
-    keywords
+fn keywords_for_discovered_app(path: &Path, _extension: &str) -> Vec<String> {
+    path.parent()
+        .and_then(Path::file_name)
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.trim().is_empty())
+        .map(|name| vec![name.to_string()])
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -807,6 +797,9 @@ mod tests {
         let uninstall_results = registry
             .search("uninstall node", 10)
             .expect("uninstall search should succeed");
+        let docs_results = registry
+            .search("documentation desktop", 10)
+            .expect("documentation search should succeed");
 
         assert_eq!(node_results[0].result.title, "Node.js");
         assert!(node_results
@@ -816,13 +809,17 @@ mod tests {
             .iter()
             .position(|ranked| ranked.result.title == "Node.js")
             .expect("normal app should remain visible");
-        let docs_position = node_results
+        let install_tools_position = node_results
             .iter()
-            .position(|ranked| ranked.result.title == "Documentation for Desktop Apps")
-            .expect("noisy docs shortcut should remain searchable");
+            .position(|ranked| ranked.result.title == "Install Additional Tools for Node.js")
+            .expect("noisy but related shortcut should remain searchable");
 
-        assert!(node_position < docs_position);
+        assert!(node_position < install_tools_position);
         assert_eq!(uninstall_results[0].result.title, "Uninstall Node.js");
+        assert_eq!(
+            docs_results[0].result.title,
+            "Documentation for Desktop Apps"
+        );
     }
 
     #[test]

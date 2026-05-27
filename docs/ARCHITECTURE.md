@@ -126,6 +126,8 @@ now so future capture work has a tested place to attach platform behavior.
 Ranking is simple:
 
 - fuzzy score over title, subtitle, and keywords;
+- a small minimum fuzzy score for plain provider results, which keeps weak
+  long-distance matches out of broad app searches;
 - provider score hints for command-style results such as calculator and shell;
 - small app score hints, currently used to demote noisy Start Menu entries such
   as uninstallers and documentation shortcuts;
