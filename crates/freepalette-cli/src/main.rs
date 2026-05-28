@@ -104,6 +104,11 @@ enum DaemonCommand {
         #[arg(short, long)]
         limit: Option<usize>,
     },
+    /// Refresh app indexing in a running daemon.
+    RefreshApps {
+        #[arg(short, long)]
+        json: bool,
+    },
     /// Stop a running daemon IPC server.
     Stop,
 }
@@ -231,6 +236,17 @@ fn run_daemon_ipc_command(command: DaemonCommand) -> anyhow::Result<()> {
                     }
                 }
                 _ => bail!("daemon returned an unexpected execution response"),
+            }
+        }
+        DaemonCommand::RefreshApps { json } => {
+            let reply = send_ipc_request(&endpoint, IpcRequest::RefreshAppIndex)
+                .context("daemon app index refresh request failed")?;
+            let response = require_ipc_response(reply)?;
+            match response {
+                IpcResponse::AppIndexRefreshed { report } => {
+                    print_app_report(report.as_ref(), json)?;
+                }
+                _ => bail!("daemon returned an unexpected app index refresh response"),
             }
         }
         DaemonCommand::Stop => {
@@ -483,5 +499,18 @@ mod tests {
             describe_action(&action),
             r#"launch app: "C:\Program Files\Example App\app.exe" --profile "German News""#
         );
+    }
+
+    #[test]
+    fn daemon_refresh_apps_command_parses() {
+        let cli = Cli::try_parse_from(["freepalette", "daemon", "refresh-apps", "--json"])
+            .expect("daemon refresh-apps command should parse");
+
+        assert!(matches!(
+            cli.command,
+            Commands::Daemon {
+                command: DaemonCommand::RefreshApps { json: true }
+            }
+        ));
     }
 }

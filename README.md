@@ -20,7 +20,8 @@ daemon/plugin-facing crates.
 - Shell command queries prefixed with `>`. Search displays the action but does
   not run it.
 - Windows Start Menu app indexing.
-- App index inspection with `apps list` and `debug apps`.
+- App index inspection with `apps list` and `debug apps`, plus daemon app index
+  refresh through `daemon refresh-apps`.
 - Explicit top-result execution with `run`.
 - TOML config loading from an explicit path or the platform default location.
 - Fuzzy search plus a small ranking model.
@@ -114,11 +115,13 @@ running daemon:
 cargo run -p freepalette-cli -- daemon status
 cargo run -p freepalette-cli -- daemon search "calc 2+2"
 cargo run -p freepalette-cli -- daemon run "> echo hello" --allow-shell
+cargo run -p freepalette-cli -- daemon refresh-apps
 cargo run -p freepalette-cli -- daemon stop
 ```
 
 Shell execution through IPC follows the same explicit allow rule as direct CLI
-execution.
+execution. `daemon refresh-apps` rebuilds the running daemon's app provider
+state and prints the same report shape as `apps list`.
 
 ## Config
 

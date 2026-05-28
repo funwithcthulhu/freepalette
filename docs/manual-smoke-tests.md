@@ -190,6 +190,7 @@ cargo run -p freepalette-cli -- daemon status
 cargo run -p freepalette-cli -- daemon search "calc 2+2"
 cargo run -p freepalette-cli -- daemon run "> echo hello"
 cargo run -p freepalette-cli -- daemon run "> echo hello" --allow-shell
+cargo run -p freepalette-cli -- daemon refresh-apps
 cargo run -p freepalette-cli -- daemon stop
 ```
 
@@ -201,6 +202,7 @@ Expected behavior:
 - `daemon search "calc 2+2"` returns the calculator result.
 - The shell run without `--allow-shell` is refused.
 - The shell run with `--allow-shell` executes.
+- `daemon refresh-apps` prints the current app index status and entries.
 - `daemon stop` or `freepalette-daemon stop` shuts down the IPC server.
 
 ## Installer Build And Install

@@ -6,7 +6,7 @@ use std::{
 };
 
 use directories::ProjectDirs;
-use freepalette_core::{Config, ProviderConfig, RankedResult, SearchResult};
+use freepalette_core::{AppIndexReport, Config, ProviderConfig, RankedResult, SearchResult};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -93,6 +93,7 @@ pub enum IpcRequest {
     SetClipboardCapture {
         enabled: bool,
     },
+    RefreshAppIndex,
     ReloadConfig,
     Shutdown,
 }
@@ -130,6 +131,9 @@ pub enum IpcResponse {
         config: Config,
         provider_config: ProviderConfig,
         clipboard_capture_enabled: bool,
+    },
+    AppIndexRefreshed {
+        report: Option<AppIndexReport>,
     },
     Reloaded {
         providers: Vec<String>,
@@ -307,6 +311,10 @@ pub fn handle_ipc_request(
             config.clipboard.capture = enabled;
             state.update_config(config)?;
             Ok(config_updated_response(state))
+        }
+        IpcRequest::RefreshAppIndex => {
+            let report = state.refresh_app_index()?.cloned();
+            Ok(IpcResponse::AppIndexRefreshed { report })
         }
         IpcRequest::ReloadConfig => {
             state.reload_config()?;
@@ -646,6 +654,40 @@ mod tests {
         };
         assert!(!provider_config.calculator);
         assert!(!state.provider_ids().iter().any(|id| id == "calculator"));
+    }
+
+    #[test]
+    fn refresh_app_index_request_returns_latest_report() {
+        let mut state = DaemonState::from_config(Config {
+            providers: provider_config(true, false, false, false),
+            ..Default::default()
+        })
+        .expect("daemon state should initialize");
+
+        let response = handle_ipc_request(&mut state, IpcRequest::RefreshAppIndex)
+            .expect("app index refresh should succeed");
+
+        let IpcResponse::AppIndexRefreshed { report } = response else {
+            unreachable!("refresh request should return app index report response");
+        };
+        assert!(report.is_some());
+    }
+
+    #[test]
+    fn refresh_app_index_request_reports_disabled_provider() {
+        let mut state = DaemonState::from_config(Config {
+            providers: provider_config(false, true, false, false),
+            ..Default::default()
+        })
+        .expect("daemon state should initialize");
+
+        let response = handle_ipc_request(&mut state, IpcRequest::RefreshAppIndex)
+            .expect("app index refresh should succeed");
+
+        let IpcResponse::AppIndexRefreshed { report } = response else {
+            unreachable!("refresh request should return app index report response");
+        };
+        assert!(report.is_none());
     }
 
     #[test]
