@@ -7,15 +7,19 @@ search index.
 
 ## Current State
 
-Clipboard capture and persistence are not implemented.
+Clipboard history is implemented as local state. Encryption, source-application
+exclusions, and secret detection are not implemented.
 
-The current daemon owns an in-memory clipboard history buffer. It can accept
-explicit entries from code paths that call into the daemon, but the application
-does not watch the system clipboard, write a history file, or sync clipboard
+The current daemon owns a local clipboard history buffer. It can accept explicit
+entries from code paths that call into the daemon. The Tauri UI can manually
+read the current text clipboard into that buffer when
+`clipboard.capture = true`. While the UI is running with capture enabled, it
+also polls the text clipboard locally. The application does not sync clipboard
 data.
 
 Provider registration and clipboard capture are separate concerns. Enabling the
-clipboard provider today does not capture clipboard contents.
+clipboard provider does not automatically capture clipboard contents unless
+`clipboard.capture` is also enabled.
 
 Clipboard capture is off by default:
 
@@ -28,7 +32,7 @@ max_entry_bytes = 4096
 
 ## Local Storage
 
-Future clipboard history storage must be local-only:
+Clipboard history storage must remain local-only:
 
 - no account requirement;
 - no cloud sync;
@@ -36,16 +40,16 @@ Future clipboard history storage must be local-only:
 - no remote plugin access to clipboard entries;
 - no clipboard contents in crash reports or diagnostics.
 
-The first persistent implementation should use an application-owned local data
-file and document its path. If encryption or OS credential storage is added, it
-must be described as a separate security decision. Until then, documentation
-must not imply that persisted clipboard history is encrypted.
+The current implementation uses an application-owned local state file. If
+encryption or OS credential storage is added, it must be described as a separate
+security decision. Until then, documentation must not imply that persisted
+clipboard history is encrypted.
 
 ## Retention
 
-Clipboard retention must be bounded before persistence is implemented.
+Clipboard retention is bounded in daemon state.
 
-The first persistent implementation should define:
+The current local state defines:
 
 - maximum number of retained entries;
 - maximum size per retained entry;
@@ -82,7 +86,7 @@ clipboard entry.
 
 ## User Controls
 
-Before persistent clipboard history ships, FreePalette should provide:
+FreePalette should keep providing:
 
 - a config switch to disable clipboard history;
 - a way to clear stored history;
@@ -101,6 +105,6 @@ Clipboard tests should cover:
 - preview truncation;
 - no full clipboard contents in action messages;
 - disabled provider registration;
-- retention limit behavior before persistence;
-- clear-history behavior before persistence;
+- retention limit behavior;
+- clear-history behavior;
 - no logs containing clipboard entry text once logging exists for this path.

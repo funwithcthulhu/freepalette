@@ -1,20 +1,30 @@
 mod hotkey;
+mod ipc;
 
-use std::path::{Path, PathBuf};
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+};
 
+use directories::ProjectDirs;
 use freepalette_core::{
     providers::{
         AppLauncherProvider, CalculatorProvider, ClipboardHistoryProvider, ShellCommandProvider,
     },
     Action, ActionOutcome, AppIndexReport, Config, CoreError, ProviderRegistry, RankedResult,
-    SearchResult,
+    ResultKind, SearchResult,
 };
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[cfg(windows)]
 pub use hotkey::windows_global_hotkey;
 pub use hotkey::{HotkeyBinding, HotkeyError, HotkeyKey, HotkeyModifiers, HotkeyState};
 pub use hotkey::{HotkeyLoopError, HotkeyLoopStatus};
+pub use ipc::{
+    default_ipc_endpoint_path, handle_ipc_request, read_default_ipc_endpoint, send_ipc_request,
+    serve_ipc, IpcEndpoint, IpcError, IpcReply, IpcRequest, IpcResponse,
+};
 
 #[derive(Debug, Error)]
 pub enum DaemonError {
@@ -24,6 +34,22 @@ pub enum DaemonError {
     Hotkey(#[from] HotkeyError),
     #[error(transparent)]
     HotkeyLoop(#[from] HotkeyLoopError),
+    #[error("failed to read local state at {path}: {source}")]
+    StateRead { path: PathBuf, source: io::Error },
+    #[error("failed to parse local state at {path}: {source}")]
+    StateParse {
+        path: PathBuf,
+        source: serde_json::Error,
+    },
+    #[error("failed to serialize local state for {path}: {source}")]
+    StateSerialize {
+        path: PathBuf,
+        source: serde_json::Error,
+    },
+    #[error("failed to write local state at {path}: {source}")]
+    StateWrite { path: PathBuf, source: io::Error },
+    #[error("unknown provider: {0}")]
+    UnknownProvider(String),
     #[error("refusing to run shell command without explicit permission")]
     ShellCommandBlocked,
 }
@@ -51,8 +77,15 @@ pub struct DaemonState {
     registry: ProviderRegistry,
     app_index_report: Option<AppIndexReport>,
     clipboard_history: Vec<String>,
+    recent_result_ids: Vec<String>,
+    local_state_path: Option<PathBuf>,
     hotkey_state: HotkeyState,
 }
+
+const RECENT_RESULT_LIMIT: usize = 25;
+const RECENT_RESULT_SCORE_BOOST: i64 = 90;
+const LOCAL_STATE_FILE_NAME: &str = "state.json";
+const LOCAL_STATE_VERSION: u32 = 1;
 
 impl DaemonState {
     /// Build state from an in-memory config.
@@ -62,19 +95,28 @@ impl DaemonState {
 
     /// Build state from an in-memory config.
     pub fn from_config(config: Config) -> Result<Self, DaemonError> {
-        Self::from_loaded_config(ConfigSource::Provided, config)
+        Self::from_loaded_config(ConfigSource::Provided, config, None, LocalState::default())
     }
 
     /// Load the platform default config file when it exists, otherwise use defaults.
     pub fn from_default_config() -> Result<Self, DaemonError> {
         let config = Config::load_default_or_default()?;
-        Self::from_loaded_config(ConfigSource::Default, config)
+        let local_state_path = default_local_state_path();
+        let local_state = load_local_state(local_state_path.as_deref())?;
+        Self::from_loaded_config(ConfigSource::Default, config, local_state_path, local_state)
     }
 
     /// Load config from an explicit path.
     pub fn load_from_path(path: &Path) -> Result<Self, DaemonError> {
         let config = Config::load_from_path(path)?;
-        Self::from_loaded_config(ConfigSource::Path(path.to_path_buf()), config)
+        let local_state_path = default_local_state_path();
+        let local_state = load_local_state(local_state_path.as_deref())?;
+        Self::from_loaded_config(
+            ConfigSource::Path(path.to_path_buf()),
+            config,
+            local_state_path,
+            local_state,
+        )
     }
 
     /// Reload config from the original source and rebuild provider state.
@@ -101,17 +143,24 @@ impl DaemonState {
         limit: Option<usize>,
     ) -> Result<Vec<RankedResult>, DaemonError> {
         let limit = limit.unwrap_or(self.config.general.max_results);
-        Ok(self.registry.search(query, limit)?)
+        let search_limit = limit.saturating_add(self.recent_result_ids.len());
+        let mut results = self.registry.search(query, search_limit)?;
+        apply_recency_boost(&mut results, &self.recent_result_ids);
+        results.truncate(limit);
+        Ok(results)
     }
 
     /// Execute a selected search result after applying the requested action policy.
     pub fn execute_result(
-        &self,
+        &mut self,
         result: &SearchResult,
         policy: ActionExecutionPolicy,
     ) -> Result<ActionOutcome, DaemonError> {
         ensure_action_allowed(&result.action, policy)?;
-        Ok(self.registry.execute(result)?)
+        let outcome = self.registry.execute(result)?;
+        self.record_recent_result(result);
+        self.save_local_state()?;
+        Ok(outcome)
     }
 
     /// Return the latest app index report when the app provider is enabled.
@@ -131,6 +180,42 @@ impl DaemonState {
     /// Return the number of clipboard history items currently held in memory.
     pub fn clipboard_history_len(&self) -> usize {
         self.clipboard_history.len()
+    }
+
+    /// Return whether clipboard capture is enabled in the loaded config.
+    pub fn clipboard_capture_enabled(&self) -> bool {
+        self.config.providers.clipboard && self.config.clipboard.capture
+    }
+
+    /// Return the number of successfully executed results held for local recency ranking.
+    pub fn recent_result_count(&self) -> usize {
+        self.recent_result_ids.len()
+    }
+
+    /// Return the path used for local state persistence, when available.
+    pub fn local_state_path(&self) -> Option<&Path> {
+        self.local_state_path.as_deref()
+    }
+
+    /// Return the loaded config.
+    pub fn config(&self) -> &Config {
+        &self.config
+    }
+
+    /// Replace the current config and write it when this state was loaded from a path.
+    pub fn update_config(&mut self, config: Config) -> Result<(), DaemonError> {
+        match &self.config_source {
+            ConfigSource::Path(path) => config.write_to_path(path)?,
+            ConfigSource::Default => {
+                if let Some(path) = Config::default_path() {
+                    config.write_to_path(&path)?;
+                    self.config_source = ConfigSource::Path(path);
+                }
+            }
+            ConfigSource::Provided => {}
+        }
+
+        self.replace_config(config)
     }
 
     /// Return the current global-hotkey setup state.
@@ -169,6 +254,13 @@ impl DaemonState {
         if text.trim().is_empty() {
             return Ok(ClipboardRecordOutcome::IgnoredEmpty);
         }
+        if self
+            .clipboard_history
+            .first()
+            .is_some_and(|existing| existing == &text)
+        {
+            return Ok(ClipboardRecordOutcome::Stored);
+        }
 
         let byte_count = text.len();
         if byte_count > self.config.clipboard.max_entry_bytes {
@@ -183,6 +275,7 @@ impl DaemonState {
         self.clipboard_history.insert(0, text);
         self.enforce_clipboard_limits();
         self.rebuild_registry()?;
+        self.save_local_state()?;
 
         Ok(ClipboardRecordOutcome::Stored)
     }
@@ -192,22 +285,51 @@ impl DaemonState {
         let removed = self.clipboard_history.len();
         self.clipboard_history.clear();
         self.rebuild_registry()?;
+        self.save_local_state()?;
         Ok(removed)
     }
 
     fn from_loaded_config(
         config_source: ConfigSource,
         config: Config,
+        local_state_path: Option<PathBuf>,
+        local_state: LocalState,
     ) -> Result<Self, DaemonError> {
-        let runtime = build_runtime(&config, &[])?;
+        let mut clipboard_history = local_state.clipboard_history;
+        apply_clipboard_config(&mut clipboard_history, &config);
+        save_local_state(
+            local_state_path.as_deref(),
+            &LocalState {
+                version: LOCAL_STATE_VERSION,
+                clipboard_history: clipboard_history.clone(),
+                recent_result_ids: local_state.recent_result_ids.clone(),
+            },
+        )?;
+        let runtime = build_runtime(&config, &clipboard_history)?;
         Ok(Self {
             config_source,
             config,
             registry: runtime.registry,
             app_index_report: runtime.app_index_report,
-            clipboard_history: Vec::new(),
+            clipboard_history,
+            recent_result_ids: local_state.recent_result_ids,
+            local_state_path,
             hotkey_state: runtime.hotkey_state,
         })
+    }
+
+    #[cfg(test)]
+    fn from_config_with_local_state_path(
+        config: Config,
+        local_state_path: PathBuf,
+    ) -> Result<Self, DaemonError> {
+        let local_state = load_local_state(Some(&local_state_path))?;
+        Self::from_loaded_config(
+            ConfigSource::Provided,
+            config,
+            Some(local_state_path),
+            local_state,
+        )
     }
 
     fn replace_config(&mut self, config: Config) -> Result<(), DaemonError> {
@@ -219,6 +341,7 @@ impl DaemonState {
         self.registry = runtime.registry;
         self.app_index_report = runtime.app_index_report;
         self.hotkey_state = runtime.hotkey_state;
+        self.save_local_state()?;
         Ok(())
     }
 
@@ -236,6 +359,31 @@ impl DaemonState {
                 .truncate(self.config.clipboard.max_entries);
         }
     }
+
+    fn record_recent_result(&mut self, result: &SearchResult) {
+        if result.kind == ResultKind::Clipboard {
+            return;
+        }
+
+        let identity = result_identity(result);
+        self.recent_result_ids
+            .retain(|existing| existing != &identity);
+        self.recent_result_ids.insert(0, identity);
+        if self.recent_result_ids.len() > RECENT_RESULT_LIMIT {
+            self.recent_result_ids.truncate(RECENT_RESULT_LIMIT);
+        }
+    }
+
+    fn save_local_state(&self) -> Result<(), DaemonError> {
+        save_local_state(
+            self.local_state_path.as_deref(),
+            &LocalState {
+                version: LOCAL_STATE_VERSION,
+                clipboard_history: self.clipboard_history.clone(),
+                recent_result_ids: self.recent_result_ids.clone(),
+            },
+        )
+    }
 }
 
 struct DaemonRuntime {
@@ -244,7 +392,7 @@ struct DaemonRuntime {
     hotkey_state: HotkeyState,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ClipboardRecordOutcome {
     Stored,
     CaptureDisabled,
@@ -252,6 +400,16 @@ pub enum ClipboardRecordOutcome {
     RetentionDisabled,
     IgnoredEmpty,
     IgnoredTooLarge { byte_count: usize, max_bytes: usize },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+struct LocalState {
+    #[serde(default)]
+    version: u32,
+    #[serde(default)]
+    clipboard_history: Vec<String>,
+    #[serde(default)]
+    recent_result_ids: Vec<String>,
 }
 
 fn apply_clipboard_config(clipboard_history: &mut Vec<String>, config: &Config) {
@@ -297,6 +455,52 @@ fn build_runtime(
     })
 }
 
+fn default_local_state_path() -> Option<PathBuf> {
+    ProjectDirs::from("org", "freepalette", "freepalette")
+        .map(|dirs| dirs.data_local_dir().join(LOCAL_STATE_FILE_NAME))
+}
+
+fn load_local_state(path: Option<&Path>) -> Result<LocalState, DaemonError> {
+    let Some(path) = path else {
+        return Ok(LocalState::default());
+    };
+    if !path.exists() {
+        return Ok(LocalState::default());
+    }
+
+    let contents = fs::read_to_string(path).map_err(|source| DaemonError::StateRead {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    serde_json::from_str(&contents).map_err(|source| DaemonError::StateParse {
+        path: path.to_path_buf(),
+        source,
+    })
+}
+
+fn save_local_state(path: Option<&Path>, state: &LocalState) -> Result<(), DaemonError> {
+    let Some(path) = path else {
+        return Ok(());
+    };
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|source| DaemonError::StateWrite {
+            path: path.to_path_buf(),
+            source,
+        })?;
+    }
+
+    let contents =
+        serde_json::to_string_pretty(state).map_err(|source| DaemonError::StateSerialize {
+            path: path.to_path_buf(),
+            source,
+        })?;
+    fs::write(path, contents).map_err(|source| DaemonError::StateWrite {
+        path: path.to_path_buf(),
+        source,
+    })
+}
+
 fn ensure_action_allowed(
     action: &Action,
     policy: ActionExecutionPolicy,
@@ -310,6 +514,33 @@ fn ensure_action_allowed(
     }
 
     Ok(())
+}
+
+fn apply_recency_boost(results: &mut [RankedResult], recent_result_ids: &[String]) {
+    if recent_result_ids.is_empty() {
+        return;
+    }
+
+    for result in results.iter_mut() {
+        if let Some(position) = recent_result_ids
+            .iter()
+            .position(|recent| recent == &result_identity(&result.result))
+        {
+            result.score += RECENT_RESULT_SCORE_BOOST - position as i64;
+        }
+    }
+
+    results.sort_by(|left, right| {
+        right
+            .score
+            .cmp(&left.score)
+            .then_with(|| left.result.title.cmp(&right.result.title))
+            .then_with(|| left.result.id.cmp(&right.result.id))
+    });
+}
+
+fn result_identity(result: &SearchResult) -> String {
+    format!("{}:{}", result.provider, result.id)
 }
 
 #[cfg(test)]
@@ -391,7 +622,7 @@ mod tests {
 
     #[test]
     fn execute_result_allows_non_shell_actions() {
-        let state = DaemonState::from_config(Config {
+        let mut state = DaemonState::from_config(Config {
             providers: provider_config(false, true, false, false),
             ..Default::default()
         })
@@ -412,7 +643,7 @@ mod tests {
 
     #[test]
     fn execute_result_blocks_shell_without_explicit_policy() {
-        let state = DaemonState::from_config(Config {
+        let mut state = DaemonState::from_config(Config {
             providers: provider_config(false, false, true, false),
             ..Default::default()
         })
@@ -437,7 +668,7 @@ mod tests {
 
     #[test]
     fn default_config_registers_shell_provider_but_keeps_execution_blocked() {
-        let state = DaemonState::from_config(Config::default())
+        let mut state = DaemonState::from_config(Config::default())
             .expect("default daemon state should initialize");
 
         assert!(state.provider_ids().iter().any(|id| id == "shell"));
@@ -485,7 +716,7 @@ mod tests {
     #[test]
     fn stale_app_entry_does_not_change_shell_execution_guard() {
         let missing_app = temp_config_path("missing-app-target").with_extension("exe");
-        let state = DaemonState::from_config(Config {
+        let mut state = DaemonState::from_config(Config {
             providers: provider_config(true, false, true, false),
             apps: vec![AppEntry::new(
                 "Stale App",
@@ -511,6 +742,213 @@ mod tests {
             .expect_err("shell execution should remain blocked");
 
         assert!(matches!(error, DaemonError::ShellCommandBlocked));
+    }
+
+    #[test]
+    fn successful_execution_records_local_recency() {
+        let mut state = DaemonState::from_config(Config {
+            providers: provider_config(false, true, false, false),
+            ..Default::default()
+        })
+        .expect("daemon state should initialize");
+        let results = state
+            .search("calc 2+2", None)
+            .expect("calculator search should succeed");
+
+        state
+            .execute_result(
+                &results[0].result,
+                ActionExecutionPolicy::BlockShellCommands,
+            )
+            .expect("calculator execution should succeed");
+
+        assert_eq!(state.recent_result_count(), 1);
+    }
+
+    #[test]
+    fn blocked_shell_execution_does_not_record_recency() {
+        let mut state = DaemonState::from_config(Config {
+            providers: provider_config(false, false, true, false),
+            ..Default::default()
+        })
+        .expect("daemon state should initialize");
+        let results = state
+            .search("> echo hello", None)
+            .expect("shell search should succeed");
+
+        let error = state
+            .execute_result(
+                &results[0].result,
+                ActionExecutionPolicy::BlockShellCommands,
+            )
+            .expect_err("shell execution should remain blocked");
+
+        assert!(matches!(error, DaemonError::ShellCommandBlocked));
+        assert_eq!(state.recent_result_count(), 0);
+    }
+
+    #[test]
+    fn recent_result_gets_small_ordering_boost() {
+        let alpha_first = RankedResult {
+            result: SearchResult::new(
+                "test".into(),
+                "alpha-first",
+                "Alpha First",
+                ResultKind::System,
+                Action::Noop {
+                    message: "first".to_string(),
+                },
+            ),
+            score: 100,
+        };
+        let alpha_second = RankedResult {
+            result: SearchResult::new(
+                "test".into(),
+                "alpha-second",
+                "Alpha Second",
+                ResultKind::System,
+                Action::Noop {
+                    message: "second".to_string(),
+                },
+            ),
+            score: 100,
+        };
+        let recent_result_ids = vec![result_identity(&alpha_second.result)];
+        let mut results = vec![alpha_first, alpha_second];
+
+        apply_recency_boost(&mut results, &recent_result_ids);
+
+        assert_eq!(results[0].result.title, "Alpha Second");
+        assert!(results[0].score > results[1].score);
+    }
+
+    #[test]
+    fn clipboard_execution_is_not_recorded_in_recency() {
+        let mut state = DaemonState::from_config(Config {
+            providers: provider_config(false, false, false, true),
+            clipboard: ClipboardConfig {
+                capture: true,
+                max_entries: 10,
+                max_entry_bytes: 128,
+            },
+            ..Default::default()
+        })
+        .expect("daemon state should initialize");
+        state
+            .record_clipboard_text("private-token-value")
+            .expect("clipboard record should store");
+
+        let results = state
+            .search("private-token-value", None)
+            .expect("clipboard search should succeed");
+
+        state
+            .execute_result(
+                &results[0].result,
+                ActionExecutionPolicy::BlockShellCommands,
+            )
+            .expect("clipboard copy action should execute");
+
+        assert_eq!(state.recent_result_count(), 0);
+    }
+
+    #[test]
+    fn local_state_persists_clipboard_history() {
+        let state_path = temp_config_path("local-state-clipboard").with_extension("json");
+        let config = Config {
+            providers: provider_config(false, false, false, true),
+            clipboard: ClipboardConfig {
+                capture: true,
+                max_entries: 10,
+                max_entry_bytes: 128,
+            },
+            ..Default::default()
+        };
+        let mut state =
+            DaemonState::from_config_with_local_state_path(config.clone(), state_path.clone())
+                .expect("daemon state should initialize with test local state");
+
+        state
+            .record_clipboard_text("persisted clipboard item")
+            .expect("clipboard record should persist local state");
+        let reloaded = DaemonState::from_config_with_local_state_path(config, state_path.clone())
+            .expect("daemon state should reload persisted local state");
+        fs::remove_file(&state_path).expect("test local state should be removable");
+
+        assert_eq!(reloaded.clipboard_history_len(), 1);
+        assert_eq!(
+            reloaded
+                .search("persisted clipboard item", None)
+                .expect("persisted clipboard item should be searchable")[0]
+                .result
+                .title,
+            "persisted clipboard item"
+        );
+    }
+
+    #[test]
+    fn disabled_clipboard_capture_clears_persisted_clipboard_history() {
+        let state_path = temp_config_path("local-state-disabled-clipboard").with_extension("json");
+        let enabled_config = Config {
+            providers: provider_config(false, false, false, true),
+            clipboard: ClipboardConfig {
+                capture: true,
+                max_entries: 10,
+                max_entry_bytes: 128,
+            },
+            ..Default::default()
+        };
+        let mut state =
+            DaemonState::from_config_with_local_state_path(enabled_config, state_path.clone())
+                .expect("daemon state should initialize with test local state");
+        state
+            .record_clipboard_text("persisted clipboard item")
+            .expect("clipboard record should persist local state");
+
+        let disabled_config = Config {
+            providers: provider_config(false, false, false, true),
+            clipboard: ClipboardConfig {
+                capture: false,
+                max_entries: 10,
+                max_entry_bytes: 128,
+            },
+            ..Default::default()
+        };
+        let reloaded =
+            DaemonState::from_config_with_local_state_path(disabled_config, state_path.clone())
+                .expect("disabled capture should reload and scrub clipboard state");
+        let state_file =
+            fs::read_to_string(&state_path).expect("scrubbed local state should be readable");
+        fs::remove_file(&state_path).expect("test local state should be removable");
+
+        assert_eq!(reloaded.clipboard_history_len(), 0);
+        assert!(!state_file.contains("persisted clipboard item"));
+    }
+
+    #[test]
+    fn local_state_persists_non_clipboard_recency() {
+        let state_path = temp_config_path("local-state-recency").with_extension("json");
+        let config = Config {
+            providers: provider_config(false, true, false, false),
+            ..Default::default()
+        };
+        let mut state =
+            DaemonState::from_config_with_local_state_path(config.clone(), state_path.clone())
+                .expect("daemon state should initialize with test local state");
+        let result = state
+            .search("calc 2+2", None)
+            .expect("calculator result should be searchable")[0]
+            .result
+            .clone();
+
+        state
+            .execute_result(&result, ActionExecutionPolicy::BlockShellCommands)
+            .expect("calculator execution should persist recency");
+        let reloaded = DaemonState::from_config_with_local_state_path(config, state_path.clone())
+            .expect("daemon state should reload persisted recency");
+        fs::remove_file(&state_path).expect("test local state should be removable");
+
+        assert_eq!(reloaded.recent_result_count(), 1);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use std::{
     sync::{Mutex, MutexGuard},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use freepalette_core::RankedResult;
@@ -15,6 +15,7 @@ const MAIN_WINDOW_LABEL: &str = "main";
 const PALETTE_UPDATED_EVENT: &str = "palette-updated";
 const PALETTE_SHOWN_EVENT: &str = "palette-shown";
 const LIFECYCLE_POLL_INTERVAL: Duration = Duration::from_millis(100);
+const CLIPBOARD_POLL_INTERVAL: Duration = Duration::from_secs(2);
 
 struct AppState {
     palette: Mutex<PaletteState>,
@@ -33,6 +34,7 @@ impl AppState {
 struct UiLifecycle {
     hotkey_bridge: UiHotkeyBridge,
     tray: Option<UiTray>,
+    next_clipboard_poll: Instant,
 }
 
 impl UiLifecycle {
@@ -40,6 +42,7 @@ impl UiLifecycle {
         Self {
             hotkey_bridge,
             tray,
+            next_clipboard_poll: Instant::now() + CLIPBOARD_POLL_INTERVAL,
         }
     }
 
@@ -74,6 +77,28 @@ struct PaletteSnapshot {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SettingsSnapshot {
+    provider_ids: Vec<String>,
+    providers: ProviderSettingsSnapshot,
+    clipboard_capture_enabled: bool,
+    clipboard_history_len: usize,
+    recent_result_count: usize,
+    hotkey_summary: String,
+    local_state_path: Option<String>,
+    daemon_connection: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderSettingsSnapshot {
+    apps: bool,
+    calculator: bool,
+    shell: bool,
+    clipboard: bool,
+}
+
+#[derive(Debug, Serialize)]
 #[serde(tag = "state", rename_all = "kebab-case")]
 enum StatusSnapshot {
     Ready,
@@ -102,7 +127,7 @@ enum ExecutionState {
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt().with_target(false).init();
 
-    let mut palette = PaletteState::from_default_config()?;
+    let mut palette = PaletteState::from_default_config_with_ipc()?;
     let hotkey_bridge = UiHotkeyBridge::from_state(palette.hotkey_state())?;
     if let Some(label) = hotkey_bridge.label() {
         tracing::info!(hotkey = %label, "UI global hotkey registered");
@@ -111,7 +136,7 @@ fn main() -> anyhow::Result<()> {
     let tray = create_tray(&mut palette);
     let tray_active = tray.as_ref().map(UiTray::is_active).unwrap_or(false);
     let close_policy = WindowClosePolicy::from_lifecycle(hotkey_bridge.is_active(), tray_active);
-    let lifecycle = UiLifecycle::new(hotkey_bridge, tray);
+    let mut lifecycle = UiLifecycle::new(hotkey_bridge, tray);
 
     let app = tauri::Builder::default()
         .manage(AppState::new(palette, close_policy))
@@ -137,6 +162,11 @@ fn main() -> anyhow::Result<()> {
             execute_selected,
             execute_confirmed_shell,
             cancel_shell_confirmation,
+            settings_snapshot,
+            record_current_clipboard,
+            clear_clipboard_history,
+            set_provider_enabled,
+            set_clipboard_capture,
             reload_config,
             reset_palette,
             close_palette_window
@@ -150,7 +180,7 @@ fn main() -> anyhow::Result<()> {
             start_lifecycle_tick_thread(app_handle.clone());
             tick_thread_started = true;
         }
-        RunEvent::MainEventsCleared => poll_lifecycle(app_handle, &lifecycle),
+        RunEvent::MainEventsCleared => poll_lifecycle(app_handle, &mut lifecycle),
         _ => {}
     });
 
@@ -209,6 +239,56 @@ fn cancel_shell_confirmation(state: State<'_, AppState>) -> Result<PaletteSnapsh
 }
 
 #[tauri::command]
+fn settings_snapshot(state: State<'_, AppState>) -> Result<SettingsSnapshot, String> {
+    let palette = lock_palette(&state)?;
+    Ok(settings(&palette))
+}
+
+#[tauri::command]
+fn record_current_clipboard(state: State<'_, AppState>) -> Result<PaletteSnapshot, String> {
+    let text = read_system_clipboard_text()?;
+    let mut palette = lock_palette(&state)?;
+    palette
+        .record_clipboard_text(text)
+        .map_err(|error| error.to_string())?;
+    Ok(snapshot(&palette))
+}
+
+#[tauri::command]
+fn clear_clipboard_history(state: State<'_, AppState>) -> Result<PaletteSnapshot, String> {
+    let mut palette = lock_palette(&state)?;
+    palette
+        .clear_clipboard_history()
+        .map_err(|error| error.to_string())?;
+    Ok(snapshot(&palette))
+}
+
+#[tauri::command]
+fn set_provider_enabled(
+    provider_id: String,
+    enabled: bool,
+    state: State<'_, AppState>,
+) -> Result<PaletteSnapshot, String> {
+    let mut palette = lock_palette(&state)?;
+    palette
+        .set_provider_enabled(&provider_id, enabled)
+        .map_err(|error| error.to_string())?;
+    Ok(snapshot(&palette))
+}
+
+#[tauri::command]
+fn set_clipboard_capture(
+    enabled: bool,
+    state: State<'_, AppState>,
+) -> Result<PaletteSnapshot, String> {
+    let mut palette = lock_palette(&state)?;
+    palette
+        .set_clipboard_capture_enabled(enabled)
+        .map_err(|error| error.to_string())?;
+    Ok(snapshot(&palette))
+}
+
+#[tauri::command]
 fn reload_config(state: State<'_, AppState>) -> Result<PaletteSnapshot, String> {
     let mut palette = lock_palette(&state)?;
     palette.reload_config();
@@ -244,6 +324,33 @@ fn snapshot(palette: &PaletteState) -> PaletteSnapshot {
         selected_index: palette.selected_index(),
         status: status_snapshot(palette.status()),
     }
+}
+
+fn settings(palette: &PaletteState) -> SettingsSnapshot {
+    let config = palette.config();
+    SettingsSnapshot {
+        provider_ids: palette.provider_ids(),
+        providers: ProviderSettingsSnapshot {
+            apps: config.providers.apps,
+            calculator: config.providers.calculator,
+            shell: config.providers.shell,
+            clipboard: config.providers.clipboard,
+        },
+        clipboard_capture_enabled: palette.clipboard_capture_enabled(),
+        clipboard_history_len: palette.clipboard_history_len(),
+        recent_result_count: palette.recent_result_count(),
+        hotkey_summary: palette.hotkey_summary(),
+        local_state_path: palette.local_state_path(),
+        daemon_connection: palette.daemon_connection_summary(),
+    }
+}
+
+fn read_system_clipboard_text() -> Result<String, String> {
+    let mut clipboard = arboard::Clipboard::new()
+        .map_err(|error| format!("failed to open system clipboard: {error}"))?;
+    clipboard
+        .get_text()
+        .map_err(|error| format!("failed to read text from system clipboard: {error}"))
 }
 
 fn status_snapshot(status: &PaletteStatus) -> StatusSnapshot {
@@ -291,7 +398,7 @@ fn start_lifecycle_tick_thread(app_handle: AppHandle) {
     });
 }
 
-fn poll_lifecycle(app_handle: &AppHandle, lifecycle: &UiLifecycle) {
+fn poll_lifecycle(app_handle: &AppHandle, lifecycle: &mut UiLifecycle) {
     if lifecycle.hotkey_bridge.take_activation_request() {
         show_palette_from_lifecycle(app_handle);
     }
@@ -299,6 +406,46 @@ fn poll_lifecycle(app_handle: &AppHandle, lifecycle: &UiLifecycle) {
     if let Some(command) = lifecycle.tray.as_ref().and_then(UiTray::poll_command) {
         handle_lifecycle_command(app_handle, lifecycle.tray.as_ref(), command);
     }
+
+    poll_clipboard_from_lifecycle(app_handle, lifecycle);
+}
+
+fn poll_clipboard_from_lifecycle(app_handle: &AppHandle, lifecycle: &mut UiLifecycle) {
+    if Instant::now() < lifecycle.next_clipboard_poll {
+        return;
+    }
+    lifecycle.next_clipboard_poll = Instant::now() + CLIPBOARD_POLL_INTERVAL;
+
+    let state = app_handle.state::<AppState>();
+    let capture_enabled = match lock_palette(&state) {
+        Ok(palette) => palette.clipboard_capture_enabled(),
+        Err(error) => {
+            tracing::warn!(%error, "failed to read clipboard capture state");
+            return;
+        }
+    };
+    if !capture_enabled {
+        return;
+    }
+
+    let text = match read_system_clipboard_text() {
+        Ok(text) => text,
+        Err(error) => {
+            tracing::debug!(%error, "background clipboard read failed");
+            return;
+        }
+    };
+
+    match lock_palette(&state) {
+        Ok(mut palette) => {
+            if let Err(error) = palette.record_clipboard_text_in_background(text) {
+                tracing::warn!(%error, "background clipboard record failed");
+                return;
+            }
+            emit_palette_update(app_handle);
+        }
+        Err(error) => tracing::warn!(%error, "failed to update palette from clipboard poll"),
+    };
 }
 
 fn handle_lifecycle_command(app_handle: &AppHandle, tray: Option<&UiTray>, command: TrayCommand) {

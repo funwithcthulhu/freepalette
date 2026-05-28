@@ -31,6 +31,26 @@ impl Config {
         })
     }
 
+    pub fn write_to_path(&self, path: &Path) -> Result<(), CoreError> {
+        let contents =
+            toml::to_string_pretty(self).map_err(|source| CoreError::ConfigSerialize {
+                path: path.to_path_buf(),
+                source,
+            })?;
+
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|source| CoreError::ConfigWrite {
+                path: path.to_path_buf(),
+                source,
+            })?;
+        }
+
+        fs::write(path, contents).map_err(|source| CoreError::ConfigWrite {
+            path: path.to_path_buf(),
+            source,
+        })
+    }
+
     pub fn load_default_or_default() -> Result<Self, CoreError> {
         match Self::default_path() {
             Some(path) => Self::load_path_or_default(&path),
@@ -221,6 +241,30 @@ mod tests {
         fs::remove_file(&path).expect("test config should be removable");
 
         assert_eq!(config.general.max_results, 3);
+    }
+
+    #[test]
+    fn writes_config_to_path() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after Unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("freepalette-write-{unique}.toml"));
+        let config = Config {
+            clipboard: ClipboardConfig {
+                capture: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        config
+            .write_to_path(&path)
+            .expect("config should write to temp path");
+        let loaded = Config::load_from_path(&path).expect("written config should reload");
+        fs::remove_file(&path).expect("test config should be removable");
+
+        assert!(loaded.clipboard.capture);
     }
 
     #[test]

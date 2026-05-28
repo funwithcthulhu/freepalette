@@ -13,6 +13,14 @@ fn temp_config_path(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("freepalette-cli-{name}-{unique}.toml"))
 }
 
+fn temp_state_dir(name: &str) -> PathBuf {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock should be after Unix epoch")
+        .as_nanos();
+    std::env::temp_dir().join(format!("freepalette-cli-state-{name}-{unique}"))
+}
+
 struct TempConfig {
     path: PathBuf,
 }
@@ -58,7 +66,15 @@ impl Drop for TempMarker {
 }
 
 fn run_freepalette(args: &[&str]) -> Output {
+    let state_dir = temp_state_dir("run");
+    fs::create_dir_all(&state_dir).expect("test state directory should be writable");
+    let runtime_dir = temp_state_dir("runtime");
+    fs::create_dir_all(&runtime_dir).expect("test runtime directory should be writable");
+
     Command::new(env!("CARGO_BIN_EXE_freepalette"))
+        .env("XDG_DATA_HOME", &state_dir)
+        .env("XDG_RUNTIME_DIR", &runtime_dir)
+        .env("LOCALAPPDATA", &state_dir)
         .args(args)
         .output()
         .expect("freepalette CLI should run")

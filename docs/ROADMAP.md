@@ -56,12 +56,32 @@ project settles.
 - Local unsigned Windows NSIS installer configuration through Tauri.
 - Tauri UI shell for the current Windows desktop path.
 
+### v0.6: Local Launcher Plumbing
+
+- Local recency boost after successful non-clipboard action execution.
+- Small Tauri settings panel for provider, clipboard, recency, and hotkey
+  state.
+- Manual text clipboard recording from the Tauri UI when clipboard capture is
+  enabled in config.
+- Text clipboard polling from the Tauri UI while capture is enabled.
+- Local state persistence for clipboard history and recency.
+- Clear local clipboard history from the Tauri UI.
+- Local daemon IPC for status, search, explicit execution, config reload, and
+  shutdown.
+- `freepalette-daemon start` and `freepalette-daemon stop` wrappers around the
+  IPC server.
+- Tauri UI connection to a running daemon IPC endpoint for search, exact
+  selected-result execution, config toggles, and clipboard history actions.
+- Tauri UI startup of a sibling daemon binary when no IPC endpoint is already
+  running.
+
 ## Next
 
 - Improve CLI and provider documentation as behavior changes.
 - Document release provenance and signing before publishing Windows installer
   artifacts.
-- Add explicit user controls before any real system clipboard capture.
+- Add a clearer UI indication when daemon startup fails or the daemon IPC
+  endpoint drops and the UI falls back to in-process state.
 - Add a CLI command for app index refresh if a long-running process needs it.
 - Replace the basic shell confirmation prompt with a clearer in-app review
   surface.
@@ -72,11 +92,10 @@ project settles.
 ## Later
 
 - Long-running daemon process.
-- IPC integration for a separate daemon if the single-process UI path is not
-  enough.
-- System clipboard capture.
-- Clipboard persistence after storage location and deletion behavior are
-  documented.
+- Packaged service/startup management for the daemon.
+- Clipboard encryption or OS credential-store integration, if the project
+  decides persisted clipboard history needs it.
+- Source-application exclusions for clipboard capture.
 - Better app launch metadata and icons.
 - macOS and Linux tray/autostart equivalents if the UI lifecycle model holds up.
 - macOS and Linux app indexing.

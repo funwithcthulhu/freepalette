@@ -1,5 +1,5 @@
 use freepalette_plugin_api::{ResultKind, SearchResult};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::fuzzy::fuzzy_score;
 
@@ -13,7 +13,7 @@ const MIN_QUERY_CHARS_FOR_FUZZY_SCORE_FLOOR: usize = 3;
 const MIN_FUZZY_SCORE_FOR_PLAIN_RESULT: i64 = 70;
 
 /// A result after applying the core ranking model.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RankedResult {
     pub result: SearchResult,
     pub score: i64,

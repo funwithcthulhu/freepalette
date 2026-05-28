@@ -8,12 +8,42 @@ const shellConfirmation = document.querySelector("#shell-confirmation");
 const shellCommand = document.querySelector("#shell-command");
 const confirmShellButton = document.querySelector("#confirm-shell");
 const cancelShellButton = document.querySelector("#cancel-shell");
+const settingsToggle = document.querySelector("#settings-toggle");
+const settingsPanel = document.querySelector("#settings-panel");
+const settingsClose = document.querySelector("#settings-close");
+const settingsProviders = document.querySelector("#settings-providers");
+const clipboardCapture = document.querySelector("#clipboard-capture");
+const settingsClipboardCount = document.querySelector("#settings-clipboard-count");
+const settingsRecentCount = document.querySelector("#settings-recent-count");
+const settingsHotkey = document.querySelector("#settings-hotkey");
+const settingsStatePath = document.querySelector("#settings-state-path");
+const settingsDaemonConnection = document.querySelector(
+  "#settings-daemon-connection",
+);
+const clipboardRecordButton = document.querySelector("#clipboard-record");
+const clipboardClearButton = document.querySelector("#clipboard-clear");
+const settingsReloadButton = document.querySelector("#settings-reload");
 
 let palette = {
   query: "",
   results: [],
   selectedIndex: null,
   status: { state: "ready" },
+};
+let settings = {
+  providerIds: [],
+  providers: {
+    apps: false,
+    calculator: false,
+    shell: false,
+    clipboard: false,
+  },
+  clipboardCaptureEnabled: false,
+  clipboardHistoryLen: 0,
+  recentResultCount: 0,
+  hotkeySummary: "",
+  localStatePath: null,
+  daemonConnection: "",
 };
 let pendingShellCommand = null;
 
@@ -53,10 +83,49 @@ cancelShellButton.addEventListener("click", async () => {
   await cancelPendingShellCommand();
 });
 
+settingsToggle.addEventListener("click", async () => {
+  await showSettings();
+});
+
+settingsClose.addEventListener("click", () => {
+  hideSettings();
+});
+
+settingsPanel.addEventListener("click", (event) => {
+  if (event.target === settingsPanel) {
+    hideSettings();
+  }
+});
+
+clipboardRecordButton.addEventListener("click", async () => {
+  await callPalette("record_current_clipboard");
+  await refreshSettings();
+});
+
+clipboardClearButton.addEventListener("click", async () => {
+  await callPalette("clear_clipboard_history");
+  await refreshSettings();
+});
+
+settingsReloadButton.addEventListener("click", async () => {
+  await callPalette("reload_config");
+  await refreshSettings();
+});
+
+clipboardCapture.addEventListener("change", async () => {
+  await callPalette("set_clipboard_capture", {
+    enabled: clipboardCapture.checked,
+  });
+  await refreshSettings();
+});
+
 document.addEventListener("keydown", async (event) => {
   if (pendingShellCommand && event.key === "Escape") {
     event.preventDefault();
     await cancelPendingShellCommand();
+  } else if (!settingsPanel.hidden && event.key === "Escape") {
+    event.preventDefault();
+    hideSettings();
   }
 });
 
@@ -66,9 +135,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   await listen("palette-shown", async () => {
     await callPalette("palette_snapshot");
+    hideSettings();
     focusSearch();
   });
   await callPalette("palette_snapshot");
+  await refreshSettings();
   focusSearch();
 });
 
@@ -77,6 +148,16 @@ async function callPalette(command, args = {}) {
     palette = await invoke(command, args);
     pendingShellCommand = null;
     render();
+  } catch (error) {
+    statusLine.textContent = String(error);
+    statusLine.className = "status error";
+  }
+}
+
+async function refreshSettings() {
+  try {
+    settings = await invoke("settings_snapshot");
+    renderSettings();
   } catch (error) {
     statusLine.textContent = String(error);
     statusLine.className = "status error";
@@ -101,6 +182,8 @@ async function handleExecutionResponse(response) {
   ) {
     await invoke("close_palette_window");
   }
+
+  await refreshSettings();
 }
 
 async function confirmPendingShellCommand() {
@@ -127,6 +210,18 @@ function render() {
   resultsList.replaceChildren(...resultElements(palette.results));
   renderStatus(palette.status);
   renderShellConfirmation();
+  renderSettings();
+}
+
+async function showSettings() {
+  await refreshSettings();
+  settingsPanel.hidden = false;
+  settingsClose.focus();
+}
+
+function hideSettings() {
+  settingsPanel.hidden = true;
+  focusSearch();
 }
 
 function focusSearch() {
@@ -198,6 +293,39 @@ function renderStatus(status) {
 
   statusLine.textContent = status.message;
   statusLine.className = status.state === "error" ? "status error" : "status";
+}
+
+function renderSettings() {
+  settingsProviders.replaceChildren(...providerToggleElements());
+  clipboardCapture.checked = Boolean(settings.clipboardCaptureEnabled);
+  settingsClipboardCount.textContent = String(settings.clipboardHistoryLen);
+  settingsRecentCount.textContent = String(settings.recentResultCount);
+  settingsHotkey.textContent = settings.hotkeySummary || "global hotkey unavailable";
+  settingsStatePath.textContent = settings.localStatePath || "not available";
+  settingsDaemonConnection.textContent =
+    settings.daemonConnection || "in-process palette state";
+}
+
+function providerToggleElements() {
+  const providers = ["apps", "calculator", "shell", "clipboard"];
+  return providers.map((providerId) => {
+    const label = document.createElement("label");
+    label.className = "toggle-row";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = Boolean(settings.providers?.[providerId]);
+    input.addEventListener("change", async () => {
+      await callPalette("set_provider_enabled", {
+        providerId,
+        enabled: input.checked,
+      });
+      await refreshSettings();
+    });
+    const text = document.createElement("span");
+    text.textContent = providerId;
+    label.append(input, text);
+    return label;
+  });
 }
 
 function describeAction(action) {

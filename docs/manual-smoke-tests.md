@@ -116,7 +116,34 @@ Expected behavior:
 - The search input is focused.
 - `calc 2+2` shows the calculator result.
 - `> echo hello` shows a shell result and asks for confirmation before running.
+- The settings button opens a panel with provider IDs, clipboard item count,
+  recent action count, and hotkey state.
+- The settings panel shows `daemon IPC at ...` when a sibling daemon executable
+  is available and startup succeeds; otherwise it shows in-process palette
+  state with the startup reason.
 - Escape hides or closes the window according to the active lifecycle state.
+
+## Manual Clipboard Capture
+
+Use this section only with a config that enables clipboard capture:
+
+```toml
+[clipboard]
+capture = true
+```
+
+Expected behavior:
+
+- The settings panel `Record Clipboard` button reads the current text clipboard
+  once.
+- The clipboard item count increases when text is stored.
+- Searching for text from the stored item returns a clipboard result.
+- `Clear Clipboard` removes local clipboard entries.
+- Closing and restarting the app keeps clipboard history in the local state
+  file.
+- Leaving the UI running with capture enabled records later text clipboard
+  changes without pressing `Record Clipboard`.
+- Clipboard contents are not printed to logs or status messages.
 
 ## Tray And Hotkey Behavior
 
@@ -141,6 +168,40 @@ Expected behavior:
   quit.
 - Pressing the configured hotkey shows and focuses the palette.
 - No arbitrary key presses are logged.
+
+## Daemon IPC
+
+Start the background IPC server:
+
+```powershell
+cargo run -p freepalette-daemon -- start
+```
+
+Or start the foreground IPC server:
+
+```powershell
+cargo run -p freepalette-daemon -- serve
+```
+
+In another terminal:
+
+```powershell
+cargo run -p freepalette-cli -- daemon status
+cargo run -p freepalette-cli -- daemon search "calc 2+2"
+cargo run -p freepalette-cli -- daemon run "> echo hello"
+cargo run -p freepalette-cli -- daemon run "> echo hello" --allow-shell
+cargo run -p freepalette-cli -- daemon stop
+```
+
+Expected behavior:
+
+- The daemon prints a localhost address and endpoint path.
+- `daemon status` prints providers, clipboard item count, recency count,
+  hotkey state, and local state path.
+- `daemon search "calc 2+2"` returns the calculator result.
+- The shell run without `--allow-shell` is refused.
+- The shell run with `--allow-shell` executes.
+- `daemon stop` or `freepalette-daemon stop` shuts down the IPC server.
 
 ## Installer Build And Install
 
