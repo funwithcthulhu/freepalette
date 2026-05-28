@@ -27,8 +27,15 @@ daemon/plugin-facing crates.
 - A minimal Tauri desktop UI in `freepalette-ui`.
 - On Windows, the Tauri UI wires the configured hotkey, tray icon, and
   launch-at-sign-in menu actions into the single-process UI lifecycle.
-- Clipboard provider backed by explicit in-memory daemon state. System clipboard
-  capture and persistence are not implemented.
+- Clipboard provider backed by local daemon state. The Tauri UI can manually
+  record the current system clipboard when clipboard capture is enabled in
+  config. When the UI is running and clipboard capture is enabled, it polls the
+  text clipboard locally.
+- Local recency ranking after successful non-clipboard action execution.
+- Local state persistence for clipboard history and recency.
+- Local daemon IPC with a localhost JSON-lines protocol and per-run token. The
+  Tauri UI can use a running endpoint or start a sibling `freepalette-daemon`
+  binary when one is available.
 - Hotkey config validation in daemon state.
 - Foreground Windows hotkey registration with `freepalette-daemon run` for
   diagnostics. That path logs presses but does not open the UI.
@@ -36,10 +43,10 @@ daemon/plugin-facing crates.
 
 ## What Does Not Work Yet
 
-- A long-running IPC daemon.
+- A packaged background service manager for the IPC daemon.
 - macOS or Linux global hotkey registration.
 - macOS or Linux tray integration or autostart setup.
-- Clipboard capture or persistence.
+- Clipboard encryption, source-app exclusions, or secret detection.
 - External plugin execution.
 - macOS or Linux app indexing.
 - Signed or published Windows installer artifacts.
@@ -85,6 +92,34 @@ The development-only `search --run` path follows the same shell rule:
 cargo run -p freepalette-cli -- search "> echo hello" --run --allow-shell
 ```
 
+## Daemon IPC
+
+Start a background local IPC server:
+
+```powershell
+cargo run -p freepalette-daemon -- start
+```
+
+Or run it in the foreground for debugging:
+
+```powershell
+cargo run -p freepalette-daemon -- serve
+```
+
+The daemon binds to localhost, writes an endpoint file containing a per-run
+token, and serves one JSON request per connection. The CLI can talk to that
+running daemon:
+
+```powershell
+cargo run -p freepalette-cli -- daemon status
+cargo run -p freepalette-cli -- daemon search "calc 2+2"
+cargo run -p freepalette-cli -- daemon run "> echo hello" --allow-shell
+cargo run -p freepalette-cli -- daemon stop
+```
+
+Shell execution through IPC follows the same explicit allow rule as direct CLI
+execution.
+
 ## Config
 
 See [examples/config/freepalette.toml](examples/config/freepalette.toml).
@@ -101,8 +136,11 @@ max_entries = 50
 max_entry_bytes = 4096
 ```
 
-The daemon has in-memory clipboard-history state for future capture work, but
-it does not watch the system clipboard or write clipboard history to disk.
+The daemon keeps clipboard history in local state. The Tauri UI can manually
+read the current text clipboard into that history when `clipboard.capture =
+true`. While the UI is running with capture enabled, it also polls the text
+clipboard locally. Clipboard contents are not printed in status messages or
+logs.
 
 The hotkey config is also disabled by default:
 
@@ -149,16 +187,21 @@ a clearly labeled Notepad fallback only when there are no configured apps.
   and action dispatch.
 - `freepalette-cli`: command-line search, inspection, and explicit run support.
 - `freepalette-daemon`: shared local state for config loading, provider setup,
-  search, app index reports, refresh, in-memory clipboard history, hotkey
-  config state, Windows foreground hotkey diagnostics, and action execution
-  policy. It is not an IPC daemon yet.
+  search, app index reports, refresh, clipboard history, hotkey config state,
+  local non-clipboard recency ranking, local state persistence, Windows
+  foreground hotkey diagnostics, local foreground IPC, and action execution
+  policy.
 - `freepalette-plugin-api`: public provider/action data types used by built-in
   providers and future plugin protocol work.
 - `freepalette-ui`: minimal Tauri palette shell with a static frontend over the
-  Rust palette state. On Windows it owns the configured hotkey, tray icon, and
-  launch-at-sign-in tray actions. It is early and has no daemon IPC,
-  auto-update, signed installer artifact, or dedicated shell-command review
-  surface.
+  Rust palette state. When a daemon IPC endpoint is running, or when the UI can
+  start a sibling `freepalette-daemon` binary, the UI uses IPC for search, exact
+  selected-result execution, config toggles, and clipboard history actions;
+  otherwise it falls back to in-process state. On Windows it owns the configured
+  hotkey, tray icon, and launch-at-sign-in tray actions. It has a small settings
+  panel for provider toggles, clipboard capture, hotkey state, local recency
+  count, and clipboard history actions. It is early and has no auto-update,
+  signed installer artifact, or full preferences editor.
 
 ## Security-Sensitive Areas
 

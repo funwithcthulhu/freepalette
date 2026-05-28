@@ -5,7 +5,10 @@ use clap::{Parser, Subcommand};
 use freepalette_core::{
     Action, AppIndexEntry, AppIndexEntrySource, AppIndexReport, Config, RankedResult,
 };
-use freepalette_daemon::{ActionExecutionPolicy, DaemonError, DaemonState};
+use freepalette_daemon::{
+    read_default_ipc_endpoint, send_ipc_request, ActionExecutionPolicy, DaemonError, DaemonState,
+    IpcReply, IpcRequest, IpcResponse,
+};
 
 #[derive(Debug, Parser)]
 #[command(name = "freepalette")]
@@ -49,6 +52,11 @@ enum Commands {
         #[command(subcommand)]
         command: DebugCommand,
     },
+    /// Talk to a running local daemon IPC server.
+    Daemon {
+        #[command(subcommand)]
+        command: DaemonCommand,
+    },
     /// List registered providers.
     Providers,
     /// Print the default config path for this platform.
@@ -73,6 +81,33 @@ enum DebugCommand {
     },
 }
 
+#[derive(Debug, Subcommand)]
+enum DaemonCommand {
+    /// Print status from a running daemon.
+    Status {
+        #[arg(short, long)]
+        json: bool,
+    },
+    /// Search through a running daemon.
+    Search {
+        query: String,
+        #[arg(short, long)]
+        json: bool,
+        #[arg(short, long)]
+        limit: Option<usize>,
+    },
+    /// Run the top ranked result through a running daemon.
+    Run {
+        query: String,
+        #[arg(long)]
+        allow_shell: bool,
+        #[arg(short, long)]
+        limit: Option<usize>,
+    },
+    /// Stop a running daemon IPC server.
+    Stop,
+}
+
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_target(false)
@@ -89,7 +124,7 @@ fn main() -> anyhow::Result<()> {
             json,
             limit,
         } => {
-            let daemon = load_daemon(cli.config.as_ref())?;
+            let mut daemon = load_daemon(cli.config.as_ref())?;
             let results = daemon.search(&query, limit)?;
 
             if json {
@@ -99,7 +134,7 @@ fn main() -> anyhow::Result<()> {
             }
 
             if run {
-                run_first_result(&daemon, &results, execution_policy(allow_shell))?;
+                run_first_result(&mut daemon, &results, execution_policy(allow_shell))?;
             }
         }
         Commands::Run {
@@ -107,9 +142,9 @@ fn main() -> anyhow::Result<()> {
             allow_shell,
             limit,
         } => {
-            let daemon = load_daemon(cli.config.as_ref())?;
+            let mut daemon = load_daemon(cli.config.as_ref())?;
             let results = daemon.search(&query, limit)?;
-            run_first_result(&daemon, &results, execution_policy(allow_shell))?;
+            run_first_result(&mut daemon, &results, execution_policy(allow_shell))?;
         }
         Commands::Apps { command } => match command {
             AppsCommand::List { json } => {
@@ -123,6 +158,7 @@ fn main() -> anyhow::Result<()> {
                 print_app_report(daemon.app_index_report(), json)?;
             }
         },
+        Commands::Daemon { command } => run_daemon_ipc_command(command)?,
         Commands::Providers => {
             let daemon = load_daemon(cli.config.as_ref())?;
             for provider_id in daemon.provider_ids() {
@@ -135,6 +171,116 @@ fn main() -> anyhow::Result<()> {
         },
     }
 
+    Ok(())
+}
+
+fn run_daemon_ipc_command(command: DaemonCommand) -> anyhow::Result<()> {
+    let endpoint = read_default_ipc_endpoint().context("failed to read daemon IPC endpoint")?;
+    match command {
+        DaemonCommand::Status { json } => {
+            let reply = send_ipc_request(&endpoint, IpcRequest::Status)
+                .context("daemon status request failed")?;
+            let response = require_ipc_response(reply)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&response)?);
+            } else {
+                print_daemon_status(response)?;
+            }
+        }
+        DaemonCommand::Search { query, json, limit } => {
+            let reply = send_ipc_request(&endpoint, IpcRequest::Search { query, limit })
+                .context("daemon search request failed")?;
+            let response = require_ipc_response(reply)?;
+            match response {
+                IpcResponse::Search { results } => {
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&results)?);
+                    } else {
+                        print_results(&results);
+                    }
+                }
+                _ => bail!("daemon returned an unexpected search response"),
+            }
+        }
+        DaemonCommand::Run {
+            query,
+            allow_shell,
+            limit,
+        } => {
+            let reply = send_ipc_request(
+                &endpoint,
+                IpcRequest::Execute {
+                    query,
+                    limit,
+                    allow_shell,
+                },
+            )
+            .context("daemon run request failed")?;
+            let response = require_ipc_response(reply)?;
+            match response {
+                IpcResponse::Executed {
+                    provider,
+                    title,
+                    message,
+                } => {
+                    if provider.is_empty() {
+                        println!("{message}");
+                    } else {
+                        println!("Running: [{provider}] {title}");
+                        println!("{message}");
+                    }
+                }
+                _ => bail!("daemon returned an unexpected execution response"),
+            }
+        }
+        DaemonCommand::Stop => {
+            let reply = send_ipc_request(&endpoint, IpcRequest::Shutdown)
+                .context("daemon shutdown request failed")?;
+            let response = require_ipc_response(reply)?;
+            match response {
+                IpcResponse::ShuttingDown => println!("daemon stopping"),
+                _ => bail!("daemon returned an unexpected shutdown response"),
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn require_ipc_response(reply: IpcReply) -> anyhow::Result<IpcResponse> {
+    if reply.ok {
+        return reply
+            .response
+            .ok_or_else(|| anyhow::anyhow!("daemon returned an empty success response"));
+    }
+
+    let error = reply
+        .error
+        .unwrap_or_else(|| "daemon request failed without an error message".to_string());
+    bail!("{error}")
+}
+
+fn print_daemon_status(response: IpcResponse) -> anyhow::Result<()> {
+    let IpcResponse::Status {
+        providers,
+        clipboard_history_len,
+        recent_result_count,
+        hotkey,
+        local_state_path,
+        ..
+    } = response
+    else {
+        bail!("daemon returned an unexpected status response");
+    };
+
+    println!("providers: {}", providers.join(", "));
+    println!("clipboard items: {clipboard_history_len}");
+    println!("recent actions: {recent_result_count}");
+    println!("hotkey: {hotkey}");
+    match local_state_path {
+        Some(path) => println!("local state: {path}"),
+        None => println!("local state: unavailable"),
+    }
     Ok(())
 }
 
@@ -210,7 +356,7 @@ fn format_arg_for_display(arg: &str) -> String {
 }
 
 fn run_first_result(
-    daemon: &DaemonState,
+    daemon: &mut DaemonState,
     results: &[RankedResult],
     policy: ActionExecutionPolicy,
 ) -> anyhow::Result<()> {

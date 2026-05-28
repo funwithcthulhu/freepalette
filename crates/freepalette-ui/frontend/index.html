@@ -8,6 +8,11 @@
   </head>
   <body>
     <main class="palette">
+      <div class="topbar">
+        <button id="settings-toggle" class="icon-button" type="button">
+          Settings
+        </button>
+      </div>
       <input
         id="search"
         class="search"
@@ -19,6 +24,62 @@
       <ol id="results" class="results"></ol>
       <p id="status" class="status" aria-live="polite"></p>
     </main>
+    <section id="settings-panel" class="settings-panel" hidden>
+      <div class="settings-card">
+        <div class="settings-heading">
+          <h2>Settings</h2>
+          <button id="settings-close" class="secondary-button" type="button">
+            Close
+          </button>
+        </div>
+        <dl class="settings-list">
+          <div>
+            <dt>Providers</dt>
+            <dd id="settings-providers" class="settings-checks"></dd>
+          </div>
+          <div>
+            <dt>Clipboard capture</dt>
+            <dd>
+              <label class="toggle-row">
+                <input id="clipboard-capture" type="checkbox" />
+                Enabled
+              </label>
+            </dd>
+          </div>
+          <div>
+            <dt>Clipboard items</dt>
+            <dd id="settings-clipboard-count"></dd>
+          </div>
+          <div>
+            <dt>Recent actions</dt>
+            <dd id="settings-recent-count"></dd>
+          </div>
+          <div>
+            <dt>Hotkey</dt>
+            <dd id="settings-hotkey"></dd>
+          </div>
+          <div>
+            <dt>Local state</dt>
+            <dd id="settings-state-path"></dd>
+          </div>
+          <div>
+            <dt>Backend</dt>
+            <dd id="settings-daemon-connection"></dd>
+          </div>
+        </dl>
+        <div class="settings-actions">
+          <button id="clipboard-record" class="secondary-button" type="button">
+            Record Clipboard
+          </button>
+          <button id="clipboard-clear" class="secondary-button" type="button">
+            Clear Clipboard
+          </button>
+          <button id="settings-reload" class="secondary-button" type="button">
+            Reload Config
+          </button>
+        </div>
+      </div>
+    </section>
     <section
       id="shell-confirmation"
       class="shell-confirmation"

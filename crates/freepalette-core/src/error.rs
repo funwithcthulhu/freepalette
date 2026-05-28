@@ -17,6 +17,18 @@ pub enum CoreError {
         #[source]
         source: Box<toml::de::Error>,
     },
+    #[error("failed to serialize config for {path}: {source}")]
+    ConfigSerialize {
+        path: PathBuf,
+        #[source]
+        source: toml::ser::Error,
+    },
+    #[error("failed to write config at {path}: {source}")]
+    ConfigWrite {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
     #[error("provider '{0}' is already registered")]
     ProviderAlreadyRegistered(String),
     #[error("provider '{0}' is not registered")]

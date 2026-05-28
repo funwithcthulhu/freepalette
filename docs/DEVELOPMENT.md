@@ -24,10 +24,13 @@ cargo test --workspace --all-features
 
 - `freepalette-core`: config, provider registry, providers, fuzzy search,
   ranking, app indexing, and action dispatch.
-- `freepalette-daemon`: shared local daemon state and Windows foreground
-  hotkey diagnostics. It is not a background IPC process yet.
+- `freepalette-daemon`: shared local daemon state, local IPC, and Windows
+  foreground hotkey diagnostics. `freepalette-daemon start` can launch the IPC
+  server in the background, but there is no packaged service manager yet.
 - `freepalette-cli`: command parsing and terminal output.
 - `freepalette-ui`: minimal Tauri palette shell and shared palette state. The
+  UI uses a running daemon IPC endpoint when one exists, or starts a sibling
+  daemon binary when it can find one, then falls back to in-process state. The
   Windows hotkey, tray, and launch-at-sign-in helpers are wired into the Tauri
   binary on Windows. Shell actions use a basic confirmation prompt before the
   UI allows execution.
