@@ -229,6 +229,7 @@ with shell execution allowed. External plugin execution is not implemented.
 - [Windows daily use](docs/WINDOWS_DAILY_USE.md)
 - [Windows installer](docs/WINDOWS_INSTALLER.md)
 - [Manual smoke tests](docs/manual-smoke-tests.md)
+- [Windows manual smoke](docs/manual-smoke/windows.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Non-goals](docs/NON_GOALS.md)
 - [Plugin model](docs/PLUGIN_MODEL.md)
