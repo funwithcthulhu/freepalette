@@ -421,8 +421,22 @@ fn handle_connection(
     BufReader::new(stream.try_clone().map_err(IpcError::ResponseRead)?)
         .read_line(&mut line)
         .map_err(IpcError::ResponseRead)?;
+    let (reply, action) = reply_for_line(state, &line, token);
+    let reply = serde_json::to_string(&reply).map_err(IpcError::ResponseParse)?;
+    stream
+        .write_all(reply.as_bytes())
+        .map_err(IpcError::RequestWrite)?;
+    stream.write_all(b"\n").map_err(IpcError::RequestWrite)?;
+    Ok(action)
+}
+
+fn reply_for_line(
+    state: &mut DaemonState,
+    line: &str,
+    token: &str,
+) -> (IpcReply, ConnectionAction) {
     let mut action = ConnectionAction::Continue;
-    let reply = match serde_json::from_str::<IpcEnvelope>(&line) {
+    let reply = match serde_json::from_str::<IpcEnvelope>(line) {
         Ok(envelope) if envelope.token == token => {
             if envelope.request == IpcRequest::Shutdown {
                 action = ConnectionAction::Shutdown;
@@ -435,12 +449,7 @@ fn handle_connection(
         Ok(_) => IpcReply::error("invalid daemon IPC token"),
         Err(error) => IpcReply::error(format!("invalid daemon IPC request: {error}")),
     };
-    let reply = serde_json::to_string(&reply).map_err(IpcError::ResponseParse)?;
-    stream
-        .write_all(reply.as_bytes())
-        .map_err(IpcError::RequestWrite)?;
-    stream.write_all(b"\n").map_err(IpcError::RequestWrite)?;
-    Ok(action)
+    (reply, action)
 }
 
 fn read_ipc_endpoint(path: &Path) -> Result<IpcEndpoint, IpcError> {
@@ -507,7 +516,7 @@ impl Drop for EndpointFileGuard {
 
 #[cfg(test)]
 mod tests {
-    use freepalette_core::{Config, ProviderConfig};
+    use freepalette_core::{ClipboardConfig, Config, ProviderConfig};
 
     use super::*;
 
@@ -523,6 +532,28 @@ mod tests {
             shell,
             clipboard,
         }
+    }
+
+    fn default_test_state() -> DaemonState {
+        DaemonState::from_config(Config::default()).expect("daemon state should initialize")
+    }
+
+    fn assert_structured_error(reply: IpcReply, expected: &str) {
+        assert!(!reply.ok);
+        assert!(reply.response.is_none());
+        let error = reply.error.expect("error reply should include a message");
+        assert!(
+            error.contains(expected),
+            "expected error containing {expected:?}, got {error:?}"
+        );
+    }
+
+    fn envelope_json(token: &str, request: IpcRequest) -> String {
+        serde_json::to_string(&IpcEnvelope {
+            token: token.to_string(),
+            request,
+        })
+        .expect("test envelope should serialize")
     }
 
     #[test]
@@ -560,6 +591,102 @@ mod tests {
             unreachable!("search request should return search response");
         };
         assert_eq!(results[0].result.title, "2+2 = 4");
+    }
+
+    #[test]
+    fn ipc_rejects_missing_or_wrong_token() {
+        let mut state = default_test_state();
+        let (reply, action) = reply_for_line(
+            &mut state,
+            r#"{"request":{"type":"status"}}"#,
+            "correct-token",
+        );
+
+        assert_eq!(action, ConnectionAction::Continue);
+        assert_structured_error(reply, "invalid daemon IPC request");
+
+        let (reply, action) = reply_for_line(
+            &mut state,
+            r#"{"token":"wrong-token","request":{"type":"status"}}"#,
+            "correct-token",
+        );
+
+        assert_eq!(action, ConnectionAction::Continue);
+        assert_structured_error(reply, "invalid daemon IPC token");
+    }
+
+    #[test]
+    fn ipc_malformed_json_returns_one_structured_error() {
+        let mut state = default_test_state();
+        let (reply, action) = reply_for_line(&mut state, "{not-json", "correct-token");
+
+        assert_eq!(action, ConnectionAction::Continue);
+        assert_structured_error(reply, "invalid daemon IPC request");
+    }
+
+    #[test]
+    fn ipc_unknown_method_returns_one_structured_error() {
+        let mut state = default_test_state();
+        let (reply, action) = reply_for_line(
+            &mut state,
+            r#"{"token":"correct-token","request":{"type":"unknown-method"}}"#,
+            "correct-token",
+        );
+
+        assert_eq!(action, ConnectionAction::Continue);
+        assert_structured_error(reply, "invalid daemon IPC request");
+    }
+
+    #[test]
+    fn ipc_replies_do_not_echo_clipboard_contents() {
+        let secret = "private-clipboard-token";
+        let mut state = DaemonState::from_config(Config {
+            providers: provider_config(false, false, false, true),
+            clipboard: ClipboardConfig {
+                capture: true,
+                max_entries: 10,
+                max_entry_bytes: 1024,
+            },
+            ..Default::default()
+        })
+        .expect("daemon state should initialize");
+        let token = "correct-token";
+
+        let (record_reply, action) = reply_for_line(
+            &mut state,
+            &envelope_json(
+                token,
+                IpcRequest::RecordClipboardText {
+                    text: secret.to_string(),
+                },
+            ),
+            token,
+        );
+        assert_eq!(action, ConnectionAction::Continue);
+        assert!(record_reply.ok);
+        let record_json =
+            serde_json::to_string(&record_reply).expect("record reply should serialize");
+        assert!(!record_json.contains(secret));
+
+        let (status_reply, action) =
+            reply_for_line(&mut state, &envelope_json(token, IpcRequest::Status), token);
+        assert_eq!(action, ConnectionAction::Continue);
+        assert!(status_reply.ok);
+        let status_json =
+            serde_json::to_string(&status_reply).expect("status reply should serialize");
+        assert!(!status_json.contains(secret));
+
+        let (error_reply, action) = reply_for_line(
+            &mut state,
+            &format!(
+                r#"{{"token":"{token}","request":{{"type":"record-clipboard-text","text":"{secret}""#
+            ),
+            token,
+        );
+        assert_eq!(action, ConnectionAction::Continue);
+        assert!(!error_reply.ok);
+        let error_json = serde_json::to_string(&error_reply).expect("error reply should serialize");
+        assert!(!error_json.contains(secret));
     }
 
     #[test]
