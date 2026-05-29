@@ -96,6 +96,11 @@ impl Default for ProviderRegistry {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
     use freepalette_plugin_api::{Action, PluginError, ResultKind};
 
     use super::*;
@@ -146,5 +151,69 @@ mod tests {
             .expect_err("duplicate provider should be rejected");
 
         assert!(matches!(error, CoreError::ProviderAlreadyRegistered(_)));
+    }
+
+    struct ShellPreviewProvider {
+        executions: Arc<AtomicUsize>,
+    }
+
+    impl Provider for ShellPreviewProvider {
+        fn id(&self) -> ProviderId {
+            ProviderId::from("shell-preview")
+        }
+
+        fn search(&self, context: &SearchContext) -> Result<Vec<SearchResult>, PluginError> {
+            let command = context
+                .query
+                .raw()
+                .trim_start()
+                .strip_prefix('>')
+                .map(str::trim)
+                .unwrap_or_default();
+            Ok(vec![SearchResult::new(
+                self.id(),
+                "shell-preview",
+                format!("Run: {command}"),
+                ResultKind::Shell,
+                Action::RunShell {
+                    command: command.to_string(),
+                },
+            )
+            .with_keywords(vec![
+                ">".to_string(),
+                "shell".to_string(),
+                "command".to_string(),
+            ])
+            .with_score_hint(900)])
+        }
+
+        fn execute(&self, _action: &Action) -> Result<ActionOutcome, PluginError> {
+            self.executions.fetch_add(1, Ordering::SeqCst);
+            Ok(ActionOutcome::new("fake shell executed"))
+        }
+    }
+
+    #[test]
+    fn search_does_not_execute_shell_actions() {
+        let executions = Arc::new(AtomicUsize::new(0));
+        let mut registry = ProviderRegistry::new();
+        registry
+            .register(ShellPreviewProvider {
+                executions: Arc::clone(&executions),
+            })
+            .expect("fake shell provider should register");
+
+        let results = registry
+            .search("> echo hello", 10)
+            .expect("shell-looking search should succeed");
+        let result = results
+            .first()
+            .expect("shell-looking search should return a preview result");
+
+        assert!(matches!(
+            result.result.action,
+            Action::RunShell { ref command } if command == "echo hello"
+        ));
+        assert_eq!(executions.load(Ordering::SeqCst), 0);
     }
 }
