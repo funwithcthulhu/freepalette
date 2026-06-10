@@ -156,7 +156,7 @@ impl DaemonState {
         result: &SearchResult,
         policy: ActionExecutionPolicy,
     ) -> Result<ActionOutcome, DaemonError> {
-        ensure_action_allowed(&result.action, policy)?;
+        ensure_action_allowed(result.primary_action(), policy)?;
         let outcome = self.registry.execute(result)?;
         self.record_recent_result(result);
         self.save_local_state()?;

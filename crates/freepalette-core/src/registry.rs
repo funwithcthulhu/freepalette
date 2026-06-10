@@ -65,7 +65,7 @@ impl ProviderRegistry {
     }
 
     pub fn execute(&self, result: &SearchResult) -> Result<ActionOutcome, CoreError> {
-        self.execute_action(&result.provider, &result.action)
+        self.execute_action(&result.provider, result.primary_action())
     }
 
     pub fn execute_action(
@@ -215,5 +215,28 @@ mod tests {
             Action::RunShell { ref command } if command == "echo hello"
         ));
         assert_eq!(executions.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn executes_existing_primary_action_field() {
+        let mut registry = ProviderRegistry::new();
+        registry
+            .register(StaticProvider)
+            .expect("test provider should register");
+        let result = SearchResult::new(
+            ProviderId::from("static"),
+            "noop",
+            "No-op",
+            ResultKind::System,
+            Action::Noop {
+                message: "primary action ran".to_string(),
+            },
+        );
+
+        let outcome = registry
+            .execute(&result)
+            .expect("primary action should execute");
+
+        assert_eq!(outcome.message, "primary action ran");
     }
 }
