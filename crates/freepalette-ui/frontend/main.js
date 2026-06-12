@@ -256,20 +256,39 @@ function resultElements(results) {
     const subtitle = document.createElement("div");
     subtitle.className = "subtitle";
     subtitle.textContent = result.subtitle || result.provider;
+    const actionValue = primaryAction(result);
     const action = document.createElement("div");
     action.className = "action";
-    action.textContent = describeAction(result.action);
+    action.textContent = describeAction(actionValue);
     content.append(title, subtitle, action);
 
     const meta = document.createElement("div");
     meta.className = "meta";
     const provider = document.createElement("span");
     provider.textContent = result.provider;
-    meta.append(provider);
+    const actionLabel = document.createElement("span");
+    actionLabel.className = "action-label";
+    actionLabel.textContent = primaryActionLabel(result);
+    meta.append(provider, actionLabel);
 
     item.append(content, meta);
     return item;
   });
+}
+
+function primaryActionDescriptor(result) {
+  return result.actions?.find((descriptor) => descriptor.primary) || null;
+}
+
+function primaryAction(result) {
+  return primaryActionDescriptor(result)?.action || result.action;
+}
+
+function primaryActionLabel(result) {
+  return (
+    primaryActionDescriptor(result)?.label ||
+    fallbackActionLabel(primaryAction(result))
+  );
 }
 
 function renderShellConfirmation() {
@@ -326,6 +345,30 @@ function providerToggleElements() {
     label.append(input, text);
     return label;
   });
+}
+
+function fallbackActionLabel(action) {
+  if (!action) {
+    return "Action";
+  }
+
+  if (action.type === "launch-app") {
+    return "Launch";
+  }
+  if (action.type === "open-path") {
+    return "Open";
+  }
+  if (action.type === "run-shell") {
+    return "Run";
+  }
+  if (action.type === "copy-text") {
+    return "Copy";
+  }
+  if (action.type === "noop") {
+    return "Show";
+  }
+
+  return "Action";
 }
 
 function describeAction(action) {
