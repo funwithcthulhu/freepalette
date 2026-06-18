@@ -58,17 +58,53 @@ body {
 
 .result {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
   gap: 8px;
-  min-height: 46px;
+  min-height: 52px;
   border-radius: 6px;
-  padding: 7px 9px;
+  padding: 7px 10px;
   color: #d8dde2;
 }
 
 .result.selected {
   background: #253044;
   color: #ffffff;
+}
+
+.kind {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  background: #181c21;
+  color: #c7d0dc;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.kind-calculator {
+  color: #98d9b6;
+}
+
+.kind-shell {
+  color: #f1b6b6;
+}
+
+.kind-clipboard {
+  color: #d8c98a;
+}
+
+.result.selected .kind {
+  border-color: #58709a;
+  background: #1d2637;
+  color: #f5f6f7;
+}
+
+.result-content {
+  min-width: 0;
 }
 
 .title {

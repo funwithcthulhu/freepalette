@@ -249,7 +249,12 @@ function resultElements(results) {
       }
     });
 
+    const kind = document.createElement("span");
+    kind.className = `kind kind-${result.kind || "system"}`;
+    kind.textContent = kindLabel(result.kind);
+
     const content = document.createElement("div");
+    content.className = "result-content";
     const title = document.createElement("p");
     title.className = "title";
     title.textContent = result.title;
@@ -271,7 +276,7 @@ function resultElements(results) {
     actionLabel.textContent = primaryActionLabel(result);
     meta.append(provider, actionLabel);
 
-    item.append(content, meta);
+    item.append(kind, content, meta);
     return item;
   });
 }
@@ -369,6 +374,26 @@ function fallbackActionLabel(action) {
   }
 
   return "Action";
+}
+
+function kindLabel(kind) {
+  if (kind === "app") {
+    return "A";
+  }
+  if (kind === "calculator") {
+    return "=";
+  }
+  if (kind === "shell") {
+    return ">";
+  }
+  if (kind === "clipboard") {
+    return "C";
+  }
+  if (kind === "plugin") {
+    return "P";
+  }
+
+  return "S";
 }
 
 function describeAction(action) {
