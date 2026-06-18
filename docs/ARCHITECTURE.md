@@ -56,7 +56,8 @@ run` can register the configured hotkey on Windows and wait in the foreground.
 That diagnostic path logs configured hotkey presses. The crate does not expose
 config file watching or open/focus the UI from a separate daemon process yet.
 `freepalette-daemon serve` starts a foreground local IPC server for status,
-search, explicit execution, config reload, and shutdown requests.
+search, explicit execution, app index refresh, config reload, and shutdown
+requests.
 `freepalette-daemon start` launches that server in the background, and
 `freepalette-daemon stop` shuts it down through IPC.
 
@@ -135,6 +136,10 @@ request is handled. The current request types are:
 - status;
 - search;
 - execute top result;
+- execute selected result;
+- record or clear clipboard history;
+- toggle provider and clipboard capture config;
+- refresh app indexing;
 - reload config;
 - shutdown.
 

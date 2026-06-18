@@ -156,7 +156,7 @@ impl DaemonState {
         result: &SearchResult,
         policy: ActionExecutionPolicy,
     ) -> Result<ActionOutcome, DaemonError> {
-        ensure_action_allowed(&result.action, policy)?;
+        ensure_action_allowed(result.primary_action(), policy)?;
         let outcome = self.registry.execute(result)?;
         self.record_recent_result(result);
         self.save_local_state()?;
@@ -326,6 +326,21 @@ impl DaemonState {
         let local_state = load_local_state(Some(&local_state_path))?;
         Self::from_loaded_config(
             ConfigSource::Provided,
+            config,
+            Some(local_state_path),
+            local_state,
+        )
+    }
+
+    #[cfg(test)]
+    fn load_from_path_with_local_state_path(
+        config_path: &Path,
+        local_state_path: PathBuf,
+    ) -> Result<Self, DaemonError> {
+        let config = Config::load_from_path(config_path)?;
+        let local_state = load_local_state(Some(&local_state_path))?;
+        Self::from_loaded_config(
+            ConfigSource::Path(config_path.to_path_buf()),
             config,
             Some(local_state_path),
             local_state,
@@ -1240,6 +1255,7 @@ mod tests {
     #[test]
     fn reload_config_updates_app_index_report_when_app_provider_changes() {
         let path = temp_config_path("reload-apps");
+        let state_path = temp_config_path("reload-apps-state").with_extension("json");
         fs::write(
             &path,
             r#"
@@ -1252,7 +1268,9 @@ mod tests {
         )
         .expect("test config should be writable");
 
-        let mut state = DaemonState::load_from_path(&path).expect("daemon state should load");
+        let mut state =
+            DaemonState::load_from_path_with_local_state_path(&path, state_path.clone())
+                .expect("daemon state should load");
         assert!(state.app_index_report().is_none());
         assert!(state.provider_ids().is_empty());
 
@@ -1277,6 +1295,7 @@ mod tests {
             .reload_config()
             .expect("daemon state should reload config");
         fs::remove_file(&path).expect("test config should be removable");
+        fs::remove_file(&state_path).expect("test local state should be removable");
 
         assert_eq!(state.provider_ids(), vec!["apps"]);
         let report = state

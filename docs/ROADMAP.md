@@ -68,6 +68,7 @@ project settles.
 - Clear local clipboard history from the Tauri UI.
 - Local daemon IPC for status, search, explicit execution, config reload, and
   shutdown.
+- CLI-triggered app index refresh through the running daemon IPC endpoint.
 - `freepalette-daemon start` and `freepalette-daemon stop` wrappers around the
   IPC server.
 - Tauri UI connection to a running daemon IPC endpoint for search, exact
@@ -82,7 +83,6 @@ project settles.
   artifacts.
 - Add a clearer UI indication when daemon startup fails or the daemon IPC
   endpoint drops and the UI falls back to in-process state.
-- Add a CLI command for app index refresh if a long-running process needs it.
 - Replace the basic shell confirmation prompt with a clearer in-app review
   surface.
 - Add basic app icons/metadata to indexed app results where platform data is

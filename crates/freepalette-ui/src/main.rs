@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use freepalette_core::RankedResult;
+use freepalette_core::{Action, RankedResult, ResultKind};
 use freepalette_ui::{
     PaletteExecution, PaletteState, PaletteStatus, SelectionDirection, TrayCommand, UiAutostart,
     UiHotkeyBridge, UiTray,
@@ -214,7 +214,21 @@ fn move_selection(
 #[tauri::command]
 fn execute_selected(state: State<'_, AppState>) -> Result<ExecutionSnapshot, String> {
     let mut palette = lock_palette(&state)?;
-    let execution = execution_state(palette.execute_selected());
+    let clipboard_text = selected_clipboard_text(&palette);
+    let mut execution = palette.execute_selected();
+    if let (PaletteExecution::Completed { .. }, Some(text)) = (&execution, clipboard_text) {
+        match write_system_clipboard_text(&text) {
+            Ok(()) => palette.set_status_info(format!(
+                "Copied {} bytes from clipboard history",
+                text.len()
+            )),
+            Err(error) => {
+                palette.set_status_error(error);
+                execution = PaletteExecution::Failed;
+            }
+        }
+    }
+    let execution = execution_state(execution);
     Ok(ExecutionSnapshot {
         execution,
         palette: snapshot(&palette),
@@ -351,6 +365,28 @@ fn read_system_clipboard_text() -> Result<String, String> {
     clipboard
         .get_text()
         .map_err(|error| format!("failed to read text from system clipboard: {error}"))
+}
+
+fn write_system_clipboard_text(text: &str) -> Result<(), String> {
+    let mut clipboard = arboard::Clipboard::new()
+        .map_err(|error| format!("failed to open system clipboard: {error}"))?;
+    clipboard
+        .set_text(text.to_string())
+        .map_err(|error| format!("failed to write text to system clipboard: {error}"))
+}
+
+fn selected_clipboard_text(palette: &PaletteState) -> Option<String> {
+    let selected = palette.selected_index()?;
+    let result = &palette.results().get(selected)?.result;
+    if result.kind != ResultKind::Clipboard {
+        return None;
+    }
+
+    let Action::CopyText { text } = result.primary_action() else {
+        return None;
+    };
+
+    Some(text.clone())
 }
 
 fn status_snapshot(status: &PaletteStatus) -> StatusSnapshot {
@@ -626,6 +662,8 @@ fn create_tray(_state: &mut PaletteState) -> Option<UiTray> {
 mod tests {
     use super::*;
 
+    use freepalette_core::{ClipboardConfig, Config, ProviderConfig};
+
     #[test]
     fn close_policy_exits_when_no_background_lifecycle_exists() {
         assert_eq!(
@@ -663,5 +701,38 @@ mod tests {
         let lifecycle = UiLifecycle::new(UiHotkeyBridge::disabled(), None);
 
         assert!(!lifecycle.is_active());
+    }
+
+    #[test]
+    fn selected_clipboard_text_reads_only_clipboard_results() {
+        let mut palette = PaletteState::from_config(Config {
+            providers: ProviderConfig {
+                apps: false,
+                calculator: true,
+                shell: false,
+                clipboard: true,
+            },
+            clipboard: ClipboardConfig {
+                capture: true,
+                max_entries: 10,
+                max_entry_bytes: 4096,
+            },
+            ..Default::default()
+        })
+        .expect("test palette should register providers");
+
+        palette
+            .record_clipboard_text("private clipboard value")
+            .expect("test clipboard text should be stored");
+        palette.set_query("private");
+
+        assert_eq!(
+            selected_clipboard_text(&palette),
+            Some("private clipboard value".to_string())
+        );
+
+        palette.set_query("calc 2+2");
+
+        assert_eq!(selected_clipboard_text(&palette), None);
     }
 }
