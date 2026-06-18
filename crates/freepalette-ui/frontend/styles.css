@@ -166,6 +166,39 @@ body {
   color: #f2df92;
 }
 
+.action-panel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  overflow: hidden;
+}
+
+.action-panel[hidden] {
+  display: none;
+}
+
+.action-panel-label {
+  color: #9da7b2;
+  font-size: 12px;
+}
+
+.action-panel-action {
+  border: 1px solid #343a40;
+  border-radius: 6px;
+  padding: 4px 8px;
+  overflow: hidden;
+  color: #d8dde2;
+  font-size: 12px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.primary-action {
+  background: #202938;
+}
+
 .shell-confirmation {
   position: fixed;
   inset: 0;

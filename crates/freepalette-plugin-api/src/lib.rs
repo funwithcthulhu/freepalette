@@ -126,6 +126,15 @@ impl ActionDescriptor {
             primary: true,
         }
     }
+
+    pub fn secondary(id: impl Into<String>, label: impl Into<String>, action: Action) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            action,
+            primary: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -184,6 +193,11 @@ impl SearchResult {
 
     pub fn with_score_hint(mut self, score_hint: i64) -> Self {
         self.score_hint = score_hint;
+        self
+    }
+
+    pub fn with_action(mut self, action: ActionDescriptor) -> Self {
+        self.actions.push(action);
         self
     }
 }
@@ -282,5 +296,33 @@ mod tests {
             result.primary_action(),
             Action::Noop { message } if message == "legacy action"
         ));
+    }
+
+    #[test]
+    fn secondary_actions_do_not_replace_primary_action() {
+        let primary = Action::LaunchApp {
+            command: "code.exe".to_string(),
+            args: Vec::new(),
+        };
+        let secondary = Action::OpenPath {
+            path: "C:\\Users\\Admin".to_string(),
+        };
+        let result = SearchResult::new(
+            ProviderId::from("apps"),
+            "code",
+            "Visual Studio Code",
+            ResultKind::App,
+            primary.clone(),
+        )
+        .with_action(ActionDescriptor::secondary(
+            "open-location",
+            "Open Location",
+            secondary,
+        ));
+
+        assert_eq!(result.actions.len(), 2);
+        assert_eq!(result.primary_action(), &primary);
+        assert_eq!(result.actions[1].id, "open-location");
+        assert!(!result.actions[1].primary);
     }
 }

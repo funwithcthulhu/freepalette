@@ -3,6 +3,7 @@ const listen = window.__TAURI__.event.listen;
 
 const searchInput = document.querySelector("#search");
 const resultsList = document.querySelector("#results");
+const actionPanel = document.querySelector("#action-panel");
 const statusLine = document.querySelector("#status");
 const shellConfirmation = document.querySelector("#shell-confirmation");
 const shellCommand = document.querySelector("#shell-command");
@@ -208,6 +209,7 @@ async function cancelPendingShellCommand() {
 function render() {
   searchInput.value = palette.query;
   resultsList.replaceChildren(...resultElements(palette.results));
+  renderActionPanel();
   renderStatus(palette.status);
   renderShellConfirmation();
   renderSettings();
@@ -306,6 +308,50 @@ function renderShellConfirmation() {
   shellCommand.textContent = pendingShellCommand;
   shellConfirmation.hidden = false;
   confirmShellButton.focus();
+}
+
+function renderActionPanel() {
+  const selected = selectedResult();
+  if (!selected || selected.actions?.length === 0) {
+    actionPanel.hidden = true;
+    actionPanel.replaceChildren();
+    return;
+  }
+
+  const label = document.createElement("span");
+  label.className = "action-panel-label";
+  label.textContent = "Actions";
+
+  const actions = selected.actions.map((descriptor) => {
+    const element = document.createElement(
+      descriptor.primary ? "button" : "span",
+    );
+    element.className = descriptor.primary
+      ? "action-panel-action primary-action"
+      : "action-panel-action";
+    element.textContent = descriptor.label;
+
+    if (descriptor.primary) {
+      element.type = "button";
+      element.addEventListener("click", async () => {
+        const response = await invoke("execute_selected");
+        await handleExecutionResponse(response);
+      });
+    }
+
+    return element;
+  });
+
+  actionPanel.replaceChildren(label, ...actions);
+  actionPanel.hidden = false;
+}
+
+function selectedResult() {
+  if (palette.selectedIndex === null || palette.selectedIndex === undefined) {
+    return null;
+  }
+
+  return palette.results[palette.selectedIndex]?.result || null;
 }
 
 function renderStatus(status) {
