@@ -58,17 +58,53 @@ body {
 
 .result {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
   gap: 8px;
-  min-height: 46px;
+  min-height: 52px;
   border-radius: 6px;
-  padding: 7px 9px;
+  padding: 7px 10px;
   color: #d8dde2;
 }
 
 .result.selected {
   background: #253044;
   color: #ffffff;
+}
+
+.kind {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  background: #181c21;
+  color: #c7d0dc;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.kind-calculator {
+  color: #98d9b6;
+}
+
+.kind-shell {
+  color: #f1b6b6;
+}
+
+.kind-clipboard {
+  color: #d8c98a;
+}
+
+.result.selected .kind {
+  border-color: #58709a;
+  background: #1d2637;
+  color: #f5f6f7;
+}
+
+.result-content {
+  min-width: 0;
 }
 
 .title {
@@ -96,14 +132,71 @@ body {
 
 .meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   align-self: start;
-  border: 1px solid #343a40;
-  border-radius: 999px;
-  padding: 2px 7px;
+  justify-content: flex-end;
+  gap: 5px;
+  max-width: 136px;
   color: #aeb8c4;
   font-size: 11px;
   line-height: 1.3;
+}
+
+.meta span {
+  border: 1px solid #343a40;
+  border-radius: 999px;
+  padding: 2px 7px;
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta .action-label {
+  color: #d8c98a;
+}
+
+.result.selected .meta span {
+  border-color: #465978;
+  color: #dce6f5;
+}
+
+.result.selected .meta .action-label {
+  color: #f2df92;
+}
+
+.action-panel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  overflow: hidden;
+}
+
+.action-panel[hidden] {
+  display: none;
+}
+
+.action-panel-label {
+  color: #9da7b2;
+  font-size: 12px;
+}
+
+.action-panel-action {
+  border: 1px solid #343a40;
+  border-radius: 6px;
+  padding: 4px 8px;
+  overflow: hidden;
+  color: #d8dde2;
+  font-size: 12px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.primary-action {
+  background: #202938;
 }
 
 .shell-confirmation {

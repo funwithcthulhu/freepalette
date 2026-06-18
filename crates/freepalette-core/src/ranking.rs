@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::fuzzy::fuzzy_score;
 
 const EXACT_TITLE_MATCH_BONUS: i64 = 300;
+const TITLE_ACRONYM_MATCH_BONUS: i64 = 240;
 const PREFIX_TITLE_MATCH_BONUS: i64 = 120;
 const APP_RESULT_BIAS: i64 = 30;
 const CALCULATOR_RESULT_BIAS: i64 = 25;
@@ -22,6 +23,7 @@ pub struct RankedResult {
 /// Rank provider results using a small, documented scoring model:
 ///
 /// - fuzzy title/subtitle/keyword match is the largest generic signal;
+/// - launcher-style title acronym matches help short queries like "vsc";
 /// - providers may add a modest score hint for exact command-style results;
 /// - exact and prefix title matches receive a small bonus;
 /// - result kind has a tiny bias so app/calculator/shell stay visible in MVP.
@@ -49,6 +51,7 @@ fn rank_result(query: &str, result: SearchResult) -> Option<RankedResult> {
 
     if !trimmed_query.is_empty()
         && result.score_hint <= 0
+        && title_acronym_bonus(trimmed_query, &result.title) == 0
         && !plain_fuzzy_match_is_strong_enough(trimmed_query, fuzzy)
     {
         return None;
@@ -65,9 +68,33 @@ fn rank_result(query: &str, result: SearchResult) -> Option<RankedResult> {
     };
 
     Some(RankedResult {
-        score: fuzzy.unwrap_or(0) + result.score_hint + exact_bonus + kind_bias(result.kind),
+        score: fuzzy.unwrap_or(0)
+            + result.score_hint
+            + exact_bonus
+            + title_acronym_bonus(trimmed_query, &result.title)
+            + kind_bias(result.kind),
         result,
     })
+}
+
+fn title_acronym_bonus(query: &str, title: &str) -> i64 {
+    let query = query.trim().to_ascii_lowercase();
+    if query.is_empty() || query.contains(char::is_whitespace) {
+        return 0;
+    }
+
+    let acronym = title
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .filter_map(|word| word.chars().next())
+        .map(|character| character.to_ascii_lowercase())
+        .collect::<String>();
+
+    if acronym == query || acronym.starts_with(&query) {
+        TITLE_ACRONYM_MATCH_BONUS
+    } else {
+        0
+    }
 }
 
 fn plain_fuzzy_match_is_strong_enough(query: &str, fuzzy: Option<i64>) -> bool {
@@ -228,6 +255,68 @@ mod tests {
 
         assert_eq!(ranked.len(), 1);
         assert_eq!(ranked[0].result.title, "Node.js");
+    }
+
+    fn ugly_launcher_results() -> Vec<SearchResult> {
+        [
+            "Visual Studio Code",
+            "Visual Studio Installer",
+            "Visual Studio Code - Insiders",
+            "Node.js",
+            "Node.js command prompt",
+            "Windows Defender Firewall with Advanced Security",
+            "Uninstall Node.js",
+            "README",
+        ]
+        .into_iter()
+        .map(|title| result_from_provider("apps", title, title, ResultKind::App, 0))
+        .collect()
+    }
+
+    #[test]
+    fn realistic_launcher_names_rank_expected_top_results() {
+        let cases = [
+            (
+                "vsc",
+                &["Visual Studio Code", "Visual Studio Code - Insiders"][..],
+            ),
+            ("code", &["Visual Studio Code"][..]),
+            ("node", &["Node.js"][..]),
+            ("node prompt", &["Node.js command prompt"][..]),
+            (
+                "defender",
+                &["Windows Defender Firewall with Advanced Security"][..],
+            ),
+            ("uninstall node", &["Uninstall Node.js"][..]),
+        ];
+
+        for (query, expected_top_titles) in cases {
+            let ranked = rank_results(query, ugly_launcher_results());
+            let top_title = ranked
+                .first()
+                .map(|ranked| ranked.result.title.as_str())
+                .unwrap_or("<no result>");
+
+            assert!(
+                expected_top_titles.contains(&top_title),
+                "query {query:?} ranked {top_title:?} first"
+            );
+        }
+    }
+
+    #[test]
+    fn plain_node_query_does_not_prefer_uninstaller() {
+        let ranked = rank_results("node", ugly_launcher_results());
+        let node_position = ranked
+            .iter()
+            .position(|ranked| ranked.result.title == "Node.js")
+            .expect("Node.js should be ranked for plain node query");
+        let uninstall_position = ranked
+            .iter()
+            .position(|ranked| ranked.result.title == "Uninstall Node.js")
+            .expect("uninstaller should remain searchable");
+
+        assert!(node_position < uninstall_position);
     }
 
     #[test]
