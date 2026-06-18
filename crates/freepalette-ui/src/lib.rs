@@ -391,7 +391,7 @@ impl PaletteState {
             return PaletteExecution::SelectedUnavailable;
         };
 
-        if let Action::RunShell { command } = &ranked.result.action {
+        if let Action::RunShell { command } = ranked.result.primary_action() {
             self.pending_shell_confirmation = Some(PendingShellConfirmation {
                 result_id: ranked.result.id.clone(),
                 command: command.clone(),
@@ -403,7 +403,7 @@ impl PaletteState {
         }
 
         self.pending_shell_confirmation = None;
-        let hide_palette = action_hides_palette_after_success(&ranked.result.action);
+        let hide_palette = action_hides_palette_after_success(ranked.result.primary_action());
         let result = ranked.result.clone();
         match self.execute_result(&result, false) {
             Ok(outcome) => {
@@ -431,7 +431,7 @@ impl PaletteState {
             return PaletteExecution::SelectedUnavailable;
         };
 
-        let Action::RunShell { command } = &ranked.result.action else {
+        let Action::RunShell { command } = ranked.result.primary_action() else {
             self.pending_shell_confirmation = None;
             self.status =
                 PaletteStatus::Error("Selected result is not a shell command".to_string());

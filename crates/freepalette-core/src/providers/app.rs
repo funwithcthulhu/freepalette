@@ -9,7 +9,7 @@ use freepalette_plugin_api::{
     Action, ActionOutcome, PluginError, Provider, ProviderId, ResultKind, SearchContext,
     SearchResult,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::debug;
 
@@ -25,14 +25,14 @@ pub struct AppLauncherProvider {
     index_status: AppIndexStatus,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppIndexReport {
     pub summary: String,
     pub status: AppIndexReportStatus,
     pub entries: Vec<AppIndexEntry>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "state", rename_all = "kebab-case")]
 pub enum AppIndexReportStatus {
     Indexed {
@@ -47,7 +47,7 @@ pub enum AppIndexReportStatus {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppIndexEntry {
     pub name: String,
     pub command: String,
@@ -57,7 +57,7 @@ pub struct AppIndexEntry {
     pub source_detail: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AppIndexEntrySource {
     Config,

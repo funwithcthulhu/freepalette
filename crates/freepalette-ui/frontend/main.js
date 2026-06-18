@@ -3,6 +3,7 @@ const listen = window.__TAURI__.event.listen;
 
 const searchInput = document.querySelector("#search");
 const resultsList = document.querySelector("#results");
+const actionPanel = document.querySelector("#action-panel");
 const statusLine = document.querySelector("#status");
 const shellConfirmation = document.querySelector("#shell-confirmation");
 const shellCommand = document.querySelector("#shell-command");
@@ -208,6 +209,7 @@ async function cancelPendingShellCommand() {
 function render() {
   searchInput.value = palette.query;
   resultsList.replaceChildren(...resultElements(palette.results));
+  renderActionPanel();
   renderStatus(palette.status);
   renderShellConfirmation();
   renderSettings();
@@ -249,27 +251,51 @@ function resultElements(results) {
       }
     });
 
+    const kind = document.createElement("span");
+    kind.className = `kind kind-${result.kind || "system"}`;
+    kind.textContent = kindLabel(result.kind);
+
     const content = document.createElement("div");
+    content.className = "result-content";
     const title = document.createElement("p");
     title.className = "title";
     title.textContent = result.title;
     const subtitle = document.createElement("div");
     subtitle.className = "subtitle";
     subtitle.textContent = result.subtitle || result.provider;
+    const actionValue = primaryAction(result);
     const action = document.createElement("div");
     action.className = "action";
-    action.textContent = describeAction(result.action);
+    action.textContent = describeAction(actionValue);
     content.append(title, subtitle, action);
 
     const meta = document.createElement("div");
     meta.className = "meta";
     const provider = document.createElement("span");
     provider.textContent = result.provider;
-    meta.append(provider);
+    const actionLabel = document.createElement("span");
+    actionLabel.className = "action-label";
+    actionLabel.textContent = primaryActionLabel(result);
+    meta.append(provider, actionLabel);
 
-    item.append(content, meta);
+    item.append(kind, content, meta);
     return item;
   });
+}
+
+function primaryActionDescriptor(result) {
+  return result.actions?.find((descriptor) => descriptor.primary) || null;
+}
+
+function primaryAction(result) {
+  return primaryActionDescriptor(result)?.action || result.action;
+}
+
+function primaryActionLabel(result) {
+  return (
+    primaryActionDescriptor(result)?.label ||
+    fallbackActionLabel(primaryAction(result))
+  );
 }
 
 function renderShellConfirmation() {
@@ -282,6 +308,50 @@ function renderShellConfirmation() {
   shellCommand.textContent = pendingShellCommand;
   shellConfirmation.hidden = false;
   confirmShellButton.focus();
+}
+
+function renderActionPanel() {
+  const selected = selectedResult();
+  if (!selected || selected.actions?.length === 0) {
+    actionPanel.hidden = true;
+    actionPanel.replaceChildren();
+    return;
+  }
+
+  const label = document.createElement("span");
+  label.className = "action-panel-label";
+  label.textContent = "Actions";
+
+  const actions = selected.actions.map((descriptor) => {
+    const element = document.createElement(
+      descriptor.primary ? "button" : "span",
+    );
+    element.className = descriptor.primary
+      ? "action-panel-action primary-action"
+      : "action-panel-action";
+    element.textContent = descriptor.label;
+
+    if (descriptor.primary) {
+      element.type = "button";
+      element.addEventListener("click", async () => {
+        const response = await invoke("execute_selected");
+        await handleExecutionResponse(response);
+      });
+    }
+
+    return element;
+  });
+
+  actionPanel.replaceChildren(label, ...actions);
+  actionPanel.hidden = false;
+}
+
+function selectedResult() {
+  if (palette.selectedIndex === null || palette.selectedIndex === undefined) {
+    return null;
+  }
+
+  return palette.results[palette.selectedIndex]?.result || null;
 }
 
 function renderStatus(status) {
@@ -326,6 +396,50 @@ function providerToggleElements() {
     label.append(input, text);
     return label;
   });
+}
+
+function fallbackActionLabel(action) {
+  if (!action) {
+    return "Action";
+  }
+
+  if (action.type === "launch-app") {
+    return "Launch";
+  }
+  if (action.type === "open-path") {
+    return "Open";
+  }
+  if (action.type === "run-shell") {
+    return "Run";
+  }
+  if (action.type === "copy-text") {
+    return "Copy";
+  }
+  if (action.type === "noop") {
+    return "Show";
+  }
+
+  return "Action";
+}
+
+function kindLabel(kind) {
+  if (kind === "app") {
+    return "A";
+  }
+  if (kind === "calculator") {
+    return "=";
+  }
+  if (kind === "shell") {
+    return ">";
+  }
+  if (kind === "clipboard") {
+    return "C";
+  }
+  if (kind === "plugin") {
+    return "P";
+  }
+
+  return "S";
 }
 
 function describeAction(action) {
